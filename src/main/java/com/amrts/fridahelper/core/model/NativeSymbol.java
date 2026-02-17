@@ -1,7 +1,7 @@
 package com.amrts.fridahelper.core.model;
 
 /**
- * Immutable representation of a native hook target.
+ * Immutable representation of a native hook target and its execution options.
  *
  * Supports two targeting modes:
  * - EXPORT: resolve by name via Module.getExportByName / Module.findExportByName
@@ -15,6 +15,17 @@ package com.amrts.fridahelper.core.model;
  *
  * waitForLoad and setTimeoutMs are *metadata* that tell the generator/wrapper
  * how to wrap the hook script. They do NOT affect the core Interceptor.attach body.
+ *
+ * DESIGN NOTE — cohesion boundary:
+ * This class currently bundles targeting (EXPORT/ADDRESS, libName, exportName/address)
+ * with execution options (waitForLoad, setTimeoutMs). This is intentional: all fields
+ * are consumed together by NativeHookGenerator and constrain each other via the builder.
+ *
+ * Consider splitting into NativeTarget + ExecutionOptions if:
+ * 1. Other hook types (Java, ObjC) need the same execution options (setTimeout, waitForLoad).
+ * 2. New execution strategies appear that aren't tied to native targeting.
+ * 3. The builder grows past ~10 fields.
+ * Until then, the single-class design avoids premature abstraction.
  */
 public final class NativeSymbol {
 
