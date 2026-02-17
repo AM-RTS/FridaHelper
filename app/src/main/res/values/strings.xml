@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FridaHelper</string>
+    <string name="tab_java_hook">Java Hook</string>
+    <string name="tab_native_hook">Native Hook</string>
+
+    <!-- Java Hook Fragment -->
+    <string name="hint_smali_signature">Smali signature (e.g. Lcom/example/Foo;->bar(I)V)</string>
+    <string name="btn_generate">Generate Script</string>
+    <string name="label_output">Generated Script</string>
+    <string name="btn_copy">Copy to Clipboard</string>
+    <string name="switch_full_script">Wrap in Java.perform</string>
+
+    <!-- Native Hook Fragment -->
+    <string name="hint_lib_name">Library name (empty = null/wildcard)</string>
+    <string name="hint_export_name">Export/symbol name</string>
+    <string name="hint_address">Address (e.g. 0xDEAD)</string>
+    <string name="hint_arg_count">Number of arguments</string>
+    <string name="hint_timeout_ms">setTimeout delay (ms, 0 = none)</string>
+    <string name="switch_wait_for_load">Wait for library loading</string>
+    <string name="radio_export">Export name</string>
+    <string name="radio_address">Address (ptr)</string>
+    <string name="label_target_mode">Target Mode</string>
+
+    <string name="msg_copied">Script copied to clipboard</string>
+    <string name="msg_error_empty_signature">Please enter a smali signature</string>
+    <string name="msg_error_empty_export">Please enter an export name</string>
+    <string name="msg_error_empty_address">Please enter an address</string>
+</resources>
