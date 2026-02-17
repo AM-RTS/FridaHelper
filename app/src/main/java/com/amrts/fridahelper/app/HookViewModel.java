@@ -4,8 +4,10 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.amrts.fridahelper.core.generator.CompositionOptions;
 import com.amrts.fridahelper.core.generator.JavaHookGenerator;
 import com.amrts.fridahelper.core.generator.NativeHookGenerator;
+import com.amrts.fridahelper.core.generator.ScriptComposer;
 import com.amrts.fridahelper.core.generator.ScriptGenerator;
 import com.amrts.fridahelper.core.generator.ScriptWrapper;
 import com.amrts.fridahelper.core.model.GeneratedScript;
@@ -14,23 +16,25 @@ import com.amrts.fridahelper.core.model.NativeSymbol;
 import com.amrts.fridahelper.core.model.SmaliMethod;
 import com.amrts.fridahelper.core.parser.SmaliSignatureParser;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Shared ViewModel for both Java and Native hook generation.
+ * Shared ViewModel for both Java and Native hook generation and multi-hook composition.
  *
  * Design notes:
  * - Uses a single-thread executor: requests serialize (no race conditions).
  * - isGenerating LiveData prevents duplicate submissions from button spam.
  * - onCleared() shuts down the executor when ViewModel is destroyed.
- * - Single version stream: app version = core version (FridaHelperVersion.VERSION).
  * - Separate LiveData streams for Java and Native output so tab switching
  *   does not show stale output from the other tab.
- * - Safe integer parsing: values larger than max limits are rejected
- *   with a field-level error rather than crashing.
- * - Wrapping order: Java.perform (inner) then setTimeout (outer).
- *   This produces: setTimeout(function(){ Java.perform(function(){ ... }) }, ms)
+ * - Hook queue is maintained internally via ScriptComposer and exposed as LiveData.
+ *   Fragments must not manipulate ScriptComposer directly.
+ * - Queue survives rotation (ViewModel lifecycle).
+ * - Composed script output uses dedicated LiveData separate from single-hook output.
  *
  * No logic duplication from CLI — uses the exact same ScriptGenerator interface.
  */
@@ -45,30 +49,119 @@ public class HookViewModel extends ViewModel {
     private final SmaliSignatureParser parser = new SmaliSignatureParser();
     private final ScriptGenerator javaGenerator = new JavaHookGenerator();
     private final ScriptGenerator nativeGenerator = new NativeHookGenerator();
+    private final ScriptComposer composer = new ScriptComposer();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    // Java hook output
+    // Java hook output (single-hook mode)
     private final MutableLiveData<String> javaScriptOutput = new MutableLiveData<>();
     private final MutableLiveData<String> javaErrorMessage = new MutableLiveData<>();
 
-    // Native hook output
+    // Native hook output (single-hook mode)
     private final MutableLiveData<String> nativeScriptOutput = new MutableLiveData<>();
     private final MutableLiveData<String> nativeErrorMessage = new MutableLiveData<>();
+
+    // Composed script output (multi-hook mode)
+    private final MutableLiveData<String> composedScriptOutput = new MutableLiveData<>();
+    private final MutableLiveData<String> composedErrorMessage = new MutableLiveData<>();
+
+    // Hook queue state
+    private final MutableLiveData<List<HookRequest>> hookQueue = new MutableLiveData<>(new ArrayList<>());
 
     // Shared generation guard
     private final MutableLiveData<Boolean> isGenerating = new MutableLiveData<>(false);
 
+    // Single-hook LiveData getters
     public LiveData<String> getJavaScriptOutput() { return javaScriptOutput; }
     public LiveData<String> getJavaErrorMessage() { return javaErrorMessage; }
     public LiveData<String> getNativeScriptOutput() { return nativeScriptOutput; }
     public LiveData<String> getNativeErrorMessage() { return nativeErrorMessage; }
+
+    // Composed script LiveData getters
+    public LiveData<String> getComposedScriptOutput() { return composedScriptOutput; }
+    public LiveData<String> getComposedErrorMessage() { return composedErrorMessage; }
+
+    // Queue LiveData getter
+    public LiveData<List<HookRequest>> getHookQueue() { return hookQueue; }
+
     public LiveData<Boolean> getIsGenerating() { return isGenerating; }
+
+    // ========== Hook queue management ==========
+
+    /**
+     * Adds a hook request to the composition queue and updates LiveData.
+     */
+    public void addHook(HookRequest request) {
+        composer.addRequest(request);
+        publishQueue();
+    }
+
+    /**
+     * Removes a hook at the given index and updates LiveData.
+     */
+    public void removeHook(int index) {
+        if (index >= 0 && index < composer.size()) {
+            composer.removeRequest(index);
+            publishQueue();
+        }
+    }
+
+    /**
+     * Clears all hooks from the queue and updates LiveData.
+     */
+    public void clearHooks() {
+        composer.clear();
+        publishQueue();
+    }
+
+    /**
+     * Returns the current queue size.
+     */
+    public int getQueueSize() {
+        return composer.size();
+    }
+
+    /**
+     * Composes all queued hooks into a single script.
+     * Takes a snapshot of the queue on the main thread, then composes on background.
+     * This prevents race conditions if the queue is mutated during composition.
+     */
+    public void composeHooks(CompositionOptions options) {
+        if (Boolean.TRUE.equals(isGenerating.getValue())) return;
+        if (composer.size() == 0) {
+            composedErrorMessage.setValue("Queue is empty. Add hooks first.");
+            return;
+        }
+        isGenerating.setValue(true);
+
+        // Snapshot on main thread to avoid race with queue mutations
+        List<HookRequest> snapshot = new ArrayList<>(composer.getRequests());
+
+        executor.execute(() -> {
+            try {
+                GeneratedScript result = new ScriptComposer(snapshot).compose(options);
+                composedScriptOutput.postValue(result.getScriptText());
+                composedErrorMessage.postValue(null);
+            } catch (Exception e) {
+                composedErrorMessage.postValue(e.getMessage());
+                composedScriptOutput.postValue(null);
+            } finally {
+                isGenerating.postValue(false);
+            }
+        });
+    }
+
+    /**
+     * Publishes a snapshot of the current queue to LiveData.
+     */
+    private void publishQueue() {
+        hookQueue.setValue(Collections.unmodifiableList(
+                new ArrayList<>(composer.getRequests())));
+    }
+
+    // ========== Single-hook generation (unchanged) ==========
 
     /**
      * Generates a Java hook script from a smali signature.
-     * Wrapping order: Java.perform (inner) then setTimeout (outer).
-     * Runs on background thread, posts result to java-specific LiveData.
-     * Ignored if a generation is already in progress.
      */
     public void generateJavaHook(String smaliSignature, boolean wrapInPerform, int timeoutMs) {
         if (Boolean.TRUE.equals(isGenerating.getValue())) return;
@@ -100,17 +193,6 @@ public class HookViewModel extends ViewModel {
 
     /**
      * Generates a native hook script from the given parameters.
-     * Optionally wraps in Java.perform (useful for JNI function hooks).
-     *
-     * Wrapping order when both wrapInPerform and setTimeout are active:
-     *   setTimeout(function(){ Java.perform(function(){ Interceptor.attach... }) }, ms)
-     *
-     * To achieve this, when wrapInPerform is true we strip setTimeout from the
-     * NativeSymbol (let the generator produce the raw hook), wrap in Java.perform,
-     * then apply setTimeout from ScriptWrapper.
-     *
-     * Runs on background thread, posts result to native-specific LiveData.
-     * Ignored if a generation is already in progress.
      */
     public void generateNativeHook(NativeSymbol symbol, boolean wrapInPerform) {
         if (Boolean.TRUE.equals(isGenerating.getValue())) return;
@@ -146,10 +228,6 @@ public class HookViewModel extends ViewModel {
         });
     }
 
-    /**
-     * Rebuilds a NativeSymbol with setTimeoutMs=0, preserving all other fields.
-     * Used when the ViewModel needs to control the setTimeout wrapping order.
-     */
     private NativeSymbol rebuildWithoutTimeout(NativeSymbol original) {
         NativeSymbol.Builder builder = new NativeSymbol.Builder()
                 .argCount(original.getArgCount());
@@ -167,15 +245,19 @@ public class HookViewModel extends ViewModel {
         return builder.build();
     }
 
+    // ========== HookRequest creation helpers (used by fragments) ==========
+
     /**
-     * Safely parses an integer string, returning a {@link ParseResult}.
-     * - Empty/blank strings return the default value.
-     * - Values exceeding maxValue or negative values are rejected.
-     * - Non-numeric strings are rejected.
-     *
-     * This method is called from Fragments before building the request,
-     * keeping validation logic centralized in the ViewModel.
+     * Parses a smali signature and creates a Java HookRequest.
+     * Returns null on parse failure (caller should handle error).
      */
+    public HookRequest createJavaHookRequest(String smaliSignature) {
+        SmaliMethod method = parser.parse(smaliSignature);
+        return HookRequest.java(method);
+    }
+
+    // ========== Utility ==========
+
     public static ParseResult safeParseInt(String text, int defaultValue, int maxValue) {
         if (text == null || text.trim().isEmpty()) {
             return ParseResult.success(defaultValue);
@@ -195,10 +277,6 @@ public class HookViewModel extends ViewModel {
         }
     }
 
-    /**
-     * Result of a safe integer parse operation.
-     * Either holds a valid int value, or an error message for field-level display.
-     */
     public static final class ParseResult {
         private final int value;
         private final String error;

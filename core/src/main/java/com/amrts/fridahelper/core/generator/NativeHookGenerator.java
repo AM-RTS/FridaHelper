@@ -46,6 +46,18 @@ public final class NativeHookGenerator implements ScriptGenerator {
         return new GeneratedScript(script, HookRequest.Type.NATIVE);
     }
 
+    @Override
+    public GeneratedScript generateBody(HookRequest request) {
+        if (request.getType() != HookRequest.Type.NATIVE) {
+            throw new IllegalArgumentException(
+                    "NativeHookGenerator requires a NATIVE HookRequest, got: " + request.getType());
+        }
+
+        NativeSymbol symbol = request.getNativeSymbol();
+        String hookBody = buildInterceptorAttach(symbol);
+        return new GeneratedScript(hookBody, HookRequest.Type.NATIVE);
+    }
+
     /**
      * Builds the core Interceptor.attach block.
      */

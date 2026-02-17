@@ -28,6 +28,11 @@ public final class JavaHookGenerator implements ScriptGenerator {
 
     @Override
     public GeneratedScript generate(HookRequest request) {
+        return generateBody(request);
+    }
+
+    @Override
+    public GeneratedScript generateBody(HookRequest request) {
         if (request.getType() != HookRequest.Type.JAVA) {
             throw new IllegalArgumentException("JavaHookGenerator requires a JAVA HookRequest, got: " + request.getType());
         }

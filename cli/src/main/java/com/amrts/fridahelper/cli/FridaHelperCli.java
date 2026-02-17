@@ -8,11 +8,12 @@ import java.util.Scanner;
  * Entry point for the FridaHelper CLI application.
  * Thin shell that delegates all work to {@link CliMenuHandler}.
  *
- * Backward-compatible menu structure:
- *   1. Java Hook    (original flow)
- *   2. Native Hook  (new)
- *   3. About
- *   4. Exit
+ * Menu structure:
+ *   1. Java Hook    (single hook, original flow)
+ *   2. Native Hook  (single hook)
+ *   3. Multi-Hook Session (compose multiple hooks into one script)
+ *   4. About
+ *   5. Exit
  */
 public final class FridaHelperCli {
 
@@ -22,8 +23,9 @@ public final class FridaHelperCli {
             + "Options:\n"
             + "1. Java Hook (from smali signature)\n"
             + "2. Native Hook (lib + symbol)\n"
-            + "3. About\n"
-            + "4. Exit\n";
+            + "3. Multi-Hook Session\n"
+            + "4. About\n"
+            + "5. Exit\n";
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -43,14 +45,17 @@ public final class FridaHelperCli {
                     handler.handleNativeHook();
                     break;
                 case "3":
-                    handler.showAbout();
+                    handler.handleMultiHookSession();
                     break;
                 case "4":
+                    handler.showAbout();
+                    break;
+                case "5":
                     System.out.println("\nExiting...");
                     running = false;
                     break;
                 default:
-                    System.out.println("Invalid option. Please enter 1-4.");
+                    System.out.println("Invalid option. Please enter 1-5.");
                     break;
             }
         }

@@ -19,10 +19,25 @@ public interface ScriptGenerator {
 
     /**
      * Generates a Frida hook script from the given request.
+     * May include wrappers (waitForLoad, setTimeout) as specified by the request.
      *
      * @param request the hook request (Java or Native)
      * @return generated script with metadata
      * @throws IllegalArgumentException if the request type is unsupported by this generator
      */
     GeneratedScript generate(HookRequest request);
+
+    /**
+     * Generates only the raw hook body without any wrappers (no Java.perform, no setTimeout,
+     * no waitForLoad). Used by {@link ScriptComposer} to merge multiple hook bodies before
+     * applying wrappers once at the composition level.
+     *
+     * <p>For Java hooks, this is the var cls = Java.use(...) block.
+     * <p>For native hooks, this is the Interceptor.attach(...) block only.
+     *
+     * @param request the hook request (Java or Native)
+     * @return generated body script (no wrappers) with metadata
+     * @throws IllegalArgumentException if the request type is unsupported by this generator
+     */
+    GeneratedScript generateBody(HookRequest request);
 }

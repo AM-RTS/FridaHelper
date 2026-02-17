@@ -33,6 +33,16 @@
     <string name="msg_error_invalid_number">Not a valid number</string>
     <string name="msg_error_number_too_large">Value too large (max 999999)</string>
 
+    <!-- Multi-hook queue -->
+    <string name="btn_add_to_queue">Add to Queue</string>
+    <string name="btn_compose_script">Compose Script</string>
+    <string name="btn_clear_queue">Clear Queue</string>
+    <string name="label_hook_queue">Hook Queue (%1$d)</string>
+    <string name="label_hook_queue_empty">Queue is empty</string>
+    <string name="btn_queue_remove">Remove hook</string>
+    <string name="msg_hook_added">Hook added. Queue: %1$d</string>
+    <string name="msg_queue_cleared">Queue cleared</string>
+
     <!-- Theme -->
     <string name="action_toggle_theme">Toggle theme</string>
     <string name="theme_switched">Theme: %1$s</string>
