@@ -20,7 +20,12 @@ import java.util.concurrent.Executors;
 /**
  * Shared ViewModel for both Java and Native hook generation.
  *
- * Calls core generators on a background thread and posts results to LiveData.
+ * Design notes:
+ * - Uses a single-thread executor: requests serialize (no race conditions).
+ * - isGenerating LiveData prevents duplicate submissions from button spam.
+ * - onCleared() shuts down the executor when ViewModel is destroyed.
+ * - Single version stream: app version = core version (FridaHelperVersion.VERSION).
+ *
  * No logic duplication from CLI — uses the exact same ScriptGenerator interface.
  */
 public class HookViewModel extends ViewModel {
@@ -32,18 +37,21 @@ public class HookViewModel extends ViewModel {
 
     private final MutableLiveData<String> scriptOutput = new MutableLiveData<>();
     private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isGenerating = new MutableLiveData<>(false);
 
     public LiveData<String> getScriptOutput() { return scriptOutput; }
     public LiveData<String> getErrorMessage() { return errorMessage; }
+    public LiveData<Boolean> getIsGenerating() { return isGenerating; }
 
     /**
      * Generates a Java hook script from a smali signature.
      * Runs on background thread, posts result to LiveData.
-     *
-     * @param smaliSignature the full smali method signature
-     * @param wrapInPerform  true to wrap in Java.perform()
+     * Ignored if a generation is already in progress.
      */
     public void generateJavaHook(String smaliSignature, boolean wrapInPerform) {
+        if (Boolean.TRUE.equals(isGenerating.getValue())) return;
+        isGenerating.setValue(true);
+
         executor.execute(() -> {
             try {
                 SmaliMethod method = parser.parse(smaliSignature);
@@ -59,6 +67,8 @@ public class HookViewModel extends ViewModel {
             } catch (Exception e) {
                 errorMessage.postValue(e.getMessage());
                 scriptOutput.postValue(null);
+            } finally {
+                isGenerating.postValue(false);
             }
         });
     }
@@ -66,8 +76,12 @@ public class HookViewModel extends ViewModel {
     /**
      * Generates a native hook script from the given parameters.
      * Runs on background thread, posts result to LiveData.
+     * Ignored if a generation is already in progress.
      */
     public void generateNativeHook(NativeSymbol symbol) {
+        if (Boolean.TRUE.equals(isGenerating.getValue())) return;
+        isGenerating.setValue(true);
+
         executor.execute(() -> {
             try {
                 HookRequest request = HookRequest.nativeHook(symbol);
@@ -78,6 +92,8 @@ public class HookViewModel extends ViewModel {
             } catch (Exception e) {
                 errorMessage.postValue(e.getMessage());
                 scriptOutput.postValue(null);
+            } finally {
+                isGenerating.postValue(false);
             }
         });
     }

@@ -58,6 +58,10 @@ public class JavaHookFragment extends Fragment {
         btnGenerate.setOnClickListener(v -> onGenerate());
         btnCopy.setOnClickListener(v -> copyToClipboard());
 
+        viewModel.getIsGenerating().observe(getViewLifecycleOwner(), generating -> {
+            btnGenerate.setEnabled(!Boolean.TRUE.equals(generating));
+        });
+
         viewModel.getScriptOutput().observe(getViewLifecycleOwner(), script -> {
             if (script != null) {
                 labelOutput.setVisibility(View.VISIBLE);
