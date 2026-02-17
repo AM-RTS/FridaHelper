@@ -300,7 +300,7 @@ The workflow will automatically build, sign, and publish the release.
 Special thanks to the following people for their contributions and support:
 
 - **Mahmud** — Help and contributions to the original FridaHelper.
-- **BotXRahat** — Various help and support during development.
+- **Rahat** — Various help and support during development.
 - **Vologhat** — The smali parameter regex pattern that powers the signature parser.
 
 ## License
