@@ -20,12 +20,11 @@ android {
             def propsFile = rootProject.file('keystore.properties')
             if (propsFile.exists()) {
                 props.load(propsFile.newDataInputStream())
+                storeFile props['storeFile'] ? rootProject.file(props['storeFile']) : null
+                storePassword props['storePassword'] ?: ''
+                keyAlias props['keyAlias'] ?: ''
+                keyPassword props['keyPassword'] ?: ''
             }
-
-            storeFile props['storeFile'] ? file(props['storeFile']) : null
-            storePassword props['storePassword'] ?: ''
-            keyAlias props['keyAlias'] ?: ''
-            keyPassword props['keyPassword'] ?: ''
         }
     }
 
@@ -34,11 +33,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-
-            def releaseSigningConfig = signingConfigs.release
-            if (releaseSigningConfig.storeFile != null && releaseSigningConfig.storeFile.exists()) {
-                signingConfig releaseSigningConfig
-            }
+            signingConfig signingConfigs.release.storeFile != null ? signingConfigs.release : null
         }
     }
 

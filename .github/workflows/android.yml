@@ -69,7 +69,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cat > keystore.properties <<EOF
-          storeFile=../fridahelper-release.jks
+          storeFile=fridahelper-release.jks
           storePassword=$STORE_PASSWORD
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
