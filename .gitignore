@@ -1,0 +1,19 @@
+# Build output
+build/
+classes.dex
+*.class
+*.jar
+
+# Gradle
+.gradle/
+gradle/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
