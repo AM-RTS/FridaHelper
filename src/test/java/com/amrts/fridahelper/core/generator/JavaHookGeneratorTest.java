@@ -188,7 +188,7 @@ public class JavaHookGeneratorTest {
     @Test(expected = IllegalArgumentException.class)
     public void generateWithNativeRequestThrows() {
         HookRequest request = HookRequest.nativeHook(
-                new com.amrts.fridahelper.core.model.NativeSymbol("lib.so", "func", 0));
+                com.amrts.fridahelper.core.model.NativeSymbol.export("lib.so", "func", 0));
         generator.generate(request);
     }
 }

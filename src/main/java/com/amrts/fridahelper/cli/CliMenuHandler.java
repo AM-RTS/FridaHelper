@@ -70,27 +70,34 @@ public final class CliMenuHandler {
     }
 
     /**
-     * Runs the native hook flow: reads lib name, export name, arg count, generates output.
+     * Runs the native hook flow with full option support:
+     * - Target mode: export name or raw address
+     * - Library name: optional (empty = null/wildcard)
+     * - Wait for library loading
+     * - setTimeout delay
      */
     public void handleNativeHook() {
-        System.out.println("\nEnter library name (e.g. libfoo.so): ");
-        String libName = scanner.nextLine().trim();
-        if (libName.isEmpty()) {
-            System.out.println("Error: library name cannot be empty.");
+        System.out.println("\nNative Hook Target:");
+        System.out.println("1. Export/symbol name");
+        System.out.println("2. Raw address (ptr)");
+
+        String modeChoice = promptLine("> ");
+        NativeSymbol.Builder builder = new NativeSymbol.Builder();
+
+        if ("1".equals(modeChoice)) {
+            handleExportMode(builder);
+        } else if ("2".equals(modeChoice)) {
+            handleAddressMode(builder);
+        } else {
+            System.out.println("Invalid option.");
             return;
         }
 
-        System.out.println("Enter export/symbol name (e.g. secret_func): ");
-        String exportName = scanner.nextLine().trim();
-        if (exportName.isEmpty()) {
-            System.out.println("Error: export name cannot be empty.");
-            return;
-        }
-
+        // Arg count
         System.out.println("Enter number of arguments (0 if unknown): ");
         int argCount;
         try {
-            argCount = Integer.parseInt(scanner.nextLine().trim());
+            argCount = Integer.parseInt(promptLine(""));
             if (argCount < 0) {
                 System.out.println("Error: argument count must be >= 0.");
                 return;
@@ -99,13 +106,70 @@ public final class CliMenuHandler {
             System.out.println("Error: please enter a valid integer.");
             return;
         }
+        builder.argCount(argCount);
 
-        NativeSymbol symbol = new NativeSymbol(libName, exportName, argCount);
+        // setTimeout option
+        System.out.println("Wrap in setTimeout? (enter delay in ms, or 0 for none): ");
+        try {
+            int delay = Integer.parseInt(promptLine(""));
+            if (delay > 0) builder.setTimeoutMs(delay);
+        } catch (NumberFormatException e) {
+            System.out.println("Warning: invalid number, skipping setTimeout.");
+        }
+
+        // Build and generate
+        NativeSymbol symbol;
+        try {
+            symbol = builder.build();
+        } catch (IllegalArgumentException e) {
+            System.out.println("Error: " + e.getMessage());
+            return;
+        }
+
         HookRequest request = HookRequest.nativeHook(symbol);
         GeneratedScript result = nativeGenerator.generate(request);
 
         System.out.println("\n[*] Here's your native frida script! :\n");
         System.out.println(result.getScriptText());
+    }
+
+    /**
+     * Handles export-based native hook input.
+     */
+    private void handleExportMode(NativeSymbol.Builder builder) {
+        System.out.println("\nEnter library name (e.g. libfoo.so, or leave empty for null/wildcard): ");
+        String libName = promptLine("");
+        builder.libName(libName.isEmpty() ? null : libName);
+
+        System.out.println("Enter export/symbol name (e.g. secret_func): ");
+        String exportName = promptLine("");
+        if (exportName.isEmpty()) {
+            System.out.println("Error: export name cannot be empty.");
+            return;
+        }
+        builder.exportName(exportName);
+
+        // Wait for load option (only if lib is specified)
+        if (!libName.isEmpty()) {
+            System.out.println("Wait for library to load? (y/n): ");
+            String waitChoice = promptLine("").toLowerCase();
+            if ("y".equals(waitChoice) || "yes".equals(waitChoice)) {
+                builder.waitForLoad(true);
+            }
+        }
+    }
+
+    /**
+     * Handles address-based native hook input.
+     */
+    private void handleAddressMode(NativeSymbol.Builder builder) {
+        System.out.println("\nEnter address (e.g. 0x12AB): ");
+        String address = promptLine("");
+        if (address.isEmpty()) {
+            System.out.println("Error: address cannot be empty.");
+            return;
+        }
+        builder.address(address);
     }
 
     /**
@@ -131,5 +195,13 @@ public final class CliMenuHandler {
             if ("2".equals(line)) return false;
             System.out.println("Invalid option. Enter 1 or 2:");
         }
+    }
+
+    /**
+     * Reads a trimmed line from scanner with optional prompt.
+     */
+    private String promptLine(String prompt) {
+        if (!prompt.isEmpty()) System.out.print(prompt);
+        return scanner.nextLine().trim();
     }
 }

@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.1.0] - 2026-02-17
+
+### Native Hook Enhancements
+- **Address-based hooks**: Hook raw pointers via `ptr("0xABCD")` — no export name needed
+- **Null/wildcard library**: Leave library name empty to resolve exports across all loaded modules (`Module.findExportByName(null, "func")`)
+- **Wait for library loading**: `android_dlopen_ext` interception pattern for libraries not yet loaded at injection time
+- **setTimeout wrapping**: Delayed execution for timing-sensitive hooks
+- **Builder pattern for NativeSymbol**: Clean API for combining options without boolean explosion
+- Backward-compatible `NativeSymbol.export()` convenience factory preserved
+
+### CLI Improvements
+- Native hook menu now offers export-based or address-based targeting
+- Optional wait-for-load prompt (when library is specified)
+- Optional setTimeout delay prompt
+- Empty library name input correctly produces `null` in generated JS
+
+### Documentation
+- Added Acknowledgements section to README
+- Added examples for all native hook modes (null lib, address, waitForLoad, setTimeout)
+
+### Testing
+- 56 tests total (up from 45)
+- New tests: null library, empty library, address-based, waitForLoad, setTimeout, combined wrappers, builder validation
+
 ## [3.0.0] - 2026-02-17
 
 ### Architecture Refactor
@@ -13,6 +37,7 @@
 - `NativeHookGenerator` produces ready-to-use Frida native hook scripts
 - `ScriptWrapper` utility for optional `Java.perform()` wrapping (snippet vs script mode)
 - Deterministic parameter name generation (a, b, c, ..., z, a0, b0, ...)
+- Central `FridaHelperVersion` constant for version tracking
 
 ### Improvements
 - `SmaliSignatureParser`: pure-function parser extracted from `JavaCls.match()`

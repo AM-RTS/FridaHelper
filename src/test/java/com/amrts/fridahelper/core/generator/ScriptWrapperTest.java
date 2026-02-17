@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
 
 /**
  * Tests for {@link ScriptWrapper}.
- * Verifies wrapping behavior for both Java and native hook types.
+ * Verifies wrapping behavior for Java.perform, setTimeout, and both hook types.
  */
 public class ScriptWrapperTest {
 
@@ -34,19 +34,18 @@ public class ScriptWrapperTest {
 
     @Test
     public void wrapIfNeeded_doesNotWrapNativeHook() {
-        NativeSymbol symbol = new NativeSymbol("libfoo.so", "func", 1);
+        NativeSymbol symbol = NativeSymbol.export("libfoo.so", "func", 1);
         GeneratedScript script = nativeGen.generate(HookRequest.nativeHook(symbol));
 
         GeneratedScript afterWrap = ScriptWrapper.wrapIfNeeded(script);
 
-        // Script should be identical — not wrapped
         assertSame(script, afterWrap);
         assertFalse(afterWrap.getScriptText().contains("Java.perform"));
     }
 
     @Test
     public void wrapInJavaPerform_wrapsNativeHookExplicitly() {
-        NativeSymbol symbol = new NativeSymbol("libfoo.so", "func", 0);
+        NativeSymbol symbol = NativeSymbol.export("libfoo.so", "func", 0);
         GeneratedScript script = nativeGen.generate(HookRequest.nativeHook(symbol));
 
         GeneratedScript wrapped = ScriptWrapper.wrapInJavaPerform(script);
@@ -64,5 +63,37 @@ public class ScriptWrapperTest {
         GeneratedScript wrapped = ScriptWrapper.wrapIfNeeded(snippet);
 
         assertEquals(HookRequest.Type.JAVA, wrapped.getHookType());
+    }
+
+    @Test
+    public void wrapInSetTimeout_wrapsScript() {
+        NativeSymbol symbol = NativeSymbol.export("lib.so", "test", 0);
+        GeneratedScript script = nativeGen.generate(HookRequest.nativeHook(symbol));
+
+        GeneratedScript wrapped = ScriptWrapper.wrapInSetTimeout(script, 500);
+
+        assertTrue(wrapped.getScriptText().startsWith("setTimeout(function() {"));
+        assertTrue(wrapped.getScriptText().endsWith("}, 500);"));
+        assertTrue(wrapped.getScriptText().contains("Interceptor.attach"));
+    }
+
+    @Test
+    public void wrapInSetTimeout_zeroDelayReturnsUnchanged() {
+        NativeSymbol symbol = NativeSymbol.export("lib.so", "test", 0);
+        GeneratedScript script = nativeGen.generate(HookRequest.nativeHook(symbol));
+
+        GeneratedScript result = ScriptWrapper.wrapInSetTimeout(script, 0);
+
+        assertSame(script, result);
+    }
+
+    @Test
+    public void wrapInSetTimeout_negativeDelayReturnsUnchanged() {
+        NativeSymbol symbol = NativeSymbol.export("lib.so", "test", 0);
+        GeneratedScript script = nativeGen.generate(HookRequest.nativeHook(symbol));
+
+        GeneratedScript result = ScriptWrapper.wrapInSetTimeout(script, -100);
+
+        assertSame(script, result);
     }
 }
