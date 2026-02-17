@@ -36,14 +36,14 @@ public class JavaHookGeneratorTest {
 
         String expected =
                 "var cls = Java.use(\"com.example.Foo\");\n"
-              + " cls.bar.overload(\"int\", \"java.lang.String\").implementation = function(a, b){\n"
-              + "\t\tconsole.log(\"Param 1: \" + a);\n"
-              + "console.log(\"Param 2: \" + b);\n"
-              + " var retval = this.bar(a, b);\n"
-              + "\t\tconsole.log(\"Return Value: \" + retval);\n"
-              + "\t//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new())),\n"
-              + " return retval;\n"
-              + "   }";
+              + "cls.bar.overload(\"int\", \"java.lang.String\").implementation = function(a, b){\n"
+              + "    console.log(\"Param 1: \" + a);\n"
+              + "    console.log(\"Param 2: \" + b);\n"
+              + "    var retval = this.bar(a, b);\n"
+              + "    console.log(\"Return Value: \" + retval);\n"
+              + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
+              + "    return retval;\n"
+              + "}";
 
         assertEquals(expected, result.getScriptText());
     }
@@ -102,9 +102,7 @@ public class JavaHookGeneratorTest {
     }
 
     /**
-     * Double-wrap safety: wrapping an already-wrapped script should add another layer,
-     * but wrapIfNeeded should only wrap once (since it checks hookType, not content).
-     * This test documents the behavior.
+     * Double-wrap behavior documentation test.
      */
     @Test
     public void doubleWrapBehavior() {
@@ -117,53 +115,43 @@ public class JavaHookGeneratorTest {
         GeneratedScript wrapped1 = ScriptWrapper.wrapIfNeeded(snippet);
         GeneratedScript wrapped2 = ScriptWrapper.wrapIfNeeded(wrapped1);
 
-        // wrapIfNeeded checks hookType (still JAVA), so it WILL wrap again.
-        // This is expected: caller is responsible for not calling it twice.
-        // The test documents this behavior explicitly.
-        assertTrue(wrapped2.getScriptText().startsWith("Java.perform(function(){\n  Java.perform("));
+        assertTrue(wrapped2.getScriptText().startsWith("Java.perform(function(){\n    Java.perform("));
     }
 
     /**
-     * Backward-compatibility snapshot: the exact output that FridaHelper 2.0 produced
-     * for the input "Lcom/example/Foo;->bar(ILjava/lang/String;)V" in full-script mode.
-     *
-     * This is the canonical regression test. If this breaks, backward compat is lost.
+     * Snapshot: full-script mode with proper indentation.
+     * Every line inside Java.perform is indented by 4 spaces.
      */
     @Test
-    public void backwardCompatibilitySnapshot_FullScript() {
-        // Simulate the exact flow the old tool did:
-        // 1. Parse smali signature
+    public void snapshot_FullScript() {
         SmaliSignatureParser parser = new SmaliSignatureParser();
         SmaliMethod method = parser.parse("Lcom/example/Foo;->bar(ILjava/lang/String;)V");
 
-        // 2. Generate snippet
         HookRequest request = HookRequest.java(method);
         GeneratedScript snippet = generator.generate(request);
-
-        // 3. Wrap in Java.perform (full script mode)
         GeneratedScript fullScript = ScriptWrapper.wrapIfNeeded(snippet);
 
         String expected =
                 "Java.perform(function(){\n"
-              + "  var cls = Java.use(\"com.example.Foo\");\n"
-              + " cls.bar.overload(\"int\", \"java.lang.String\").implementation = function(a, b){\n"
-              + "\t\tconsole.log(\"Param 1: \" + a);\n"
-              + "console.log(\"Param 2: \" + b);\n"
-              + " var retval = this.bar(a, b);\n"
-              + "\t\tconsole.log(\"Return Value: \" + retval);\n"
-              + "\t//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new())),\n"
-              + " return retval;\n"
-              + "   }\n"
+              + "    var cls = Java.use(\"com.example.Foo\");\n"
+              + "    cls.bar.overload(\"int\", \"java.lang.String\").implementation = function(a, b){\n"
+              + "        console.log(\"Param 1: \" + a);\n"
+              + "        console.log(\"Param 2: \" + b);\n"
+              + "        var retval = this.bar(a, b);\n"
+              + "        console.log(\"Return Value: \" + retval);\n"
+              + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
+              + "        return retval;\n"
+              + "    }\n"
               + "});";
 
         assertEquals(expected, fullScript.getScriptText());
     }
 
     /**
-     * Backward-compatibility snapshot: snippet mode (no Java.perform wrapper).
+     * Snapshot: snippet mode (no Java.perform wrapper).
      */
     @Test
-    public void backwardCompatibilitySnapshot_Snippet() {
+    public void snapshot_Snippet() {
         SmaliSignatureParser parser = new SmaliSignatureParser();
         SmaliMethod method = parser.parse("Lcom/example/Foo;->getName()Ljava/lang/String;");
 
@@ -172,12 +160,12 @@ public class JavaHookGeneratorTest {
 
         String expected =
                 "var cls = Java.use(\"com.example.Foo\");\n"
-              + " cls.getName.overload().implementation = function(){\n"
-              + " var retval = this.getName();\n"
-              + "\t\tconsole.log(\"Return Value: \" + retval);\n"
-              + "\t//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new())),\n"
-              + " return retval;\n"
-              + "   }";
+              + "cls.getName.overload().implementation = function(){\n"
+              + "    var retval = this.getName();\n"
+              + "    console.log(\"Return Value: \" + retval);\n"
+              + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
+              + "    return retval;\n"
+              + "}";
 
         assertEquals(expected, snippet.getScriptText());
     }

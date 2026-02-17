@@ -258,6 +258,25 @@ public class NativeHookGeneratorTest {
         new NativeSymbol.Builder().address("").build();
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void argCountExceedingMaxThrows() {
+        new NativeSymbol.Builder()
+                .libName("lib.so")
+                .exportName("func")
+                .argCount(NativeSymbol.MAX_ARG_COUNT + 1)
+                .build();
+    }
+
+    @Test
+    public void argCountAtMaxBoundarySucceeds() {
+        NativeSymbol symbol = new NativeSymbol.Builder()
+                .libName("lib.so")
+                .exportName("func")
+                .argCount(NativeSymbol.MAX_ARG_COUNT)
+                .build();
+        assertEquals(NativeSymbol.MAX_ARG_COUNT, symbol.getArgCount());
+    }
+
     /**
      * Wrong request type should throw.
      */

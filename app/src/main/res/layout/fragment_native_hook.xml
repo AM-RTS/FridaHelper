@@ -51,9 +51,11 @@
             android:layout_marginTop="12dp">
 
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/layout_lib_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="@string/hint_lib_name"
+                app:errorEnabled="true"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -67,10 +69,12 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/layout_export_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:hint="@string/hint_export_name"
+                app:errorEnabled="true"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -83,13 +87,6 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.materialswitch.MaterialSwitch
-                android:id="@+id/switch_wait_for_load"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/switch_wait_for_load" />
-
         </LinearLayout>
 
         <!-- Address mode field -->
@@ -100,6 +97,7 @@
             android:layout_marginTop="12dp"
             android:hint="@string/hint_address"
             android:visibility="gone"
+            app:errorEnabled="true"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -112,12 +110,14 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Shared fields -->
+        <!-- Shared text fields -->
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_arg_count"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:hint="@string/hint_arg_count"
+            app:errorEnabled="true"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -125,16 +125,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
+                android:maxLength="3"
                 android:text="0"
                 android:textSize="14sp" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_timeout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:hint="@string/hint_timeout_ms"
+            app:errorEnabled="true"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -142,10 +145,26 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
+                android:maxLength="6"
                 android:text="0"
                 android:textSize="14sp" />
 
         </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Toggles -->
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switch_wait_for_load"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/switch_wait_for_load" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switch_wrap_perform"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/switch_wrap_perform" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_generate"
@@ -193,14 +212,14 @@
             android:visibility="gone"
             style="@style/Widget.Material3.Button.TonalButton" />
 
-        <TextView
-            android:id="@+id/text_error"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_export"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:textColor="#D32F2F"
-            android:textSize="13sp"
-            android:visibility="gone" />
+            android:text="@string/btn_export"
+            android:visibility="gone"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
 
     </LinearLayout>
 </ScrollView>

@@ -3,15 +3,22 @@ package com.amrts.fridahelper.app;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.tabs.TabLayoutMediator;
 
 /**
- * Main activity with a TabLayout switching between JavaHookFragment and NativeHookFragment.
+ * Main activity with ViewPager2 + TabLayout for smooth swipe-based tab switching.
+ * Page 0 = Java Hook, Page 1 = Native Hook.
  * No hook logic here — everything is delegated to the ViewModel and Fragments.
  */
 public class MainActivity extends AppCompatActivity {
+
+    private final int[] tabTitleResIds = {
+            R.string.tab_java_hook,
+            R.string.tab_native_hook
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -19,37 +26,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         TabLayout tabLayout = findViewById(R.id.tab_layout);
-        tabLayout.addTab(tabLayout.newTab().setText(R.string.tab_java_hook));
-        tabLayout.addTab(tabLayout.newTab().setText(R.string.tab_native_hook));
+        ViewPager2 viewPager = findViewById(R.id.view_pager);
 
-        if (savedInstanceState == null) {
-            showFragment(new JavaHookFragment());
-        }
+        viewPager.setAdapter(new HookPagerAdapter(this));
 
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                Fragment fragment;
-                if (tab.getPosition() == 0) {
-                    fragment = new JavaHookFragment();
-                } else {
-                    fragment = new NativeHookFragment();
-                }
-                showFragment(fragment);
-            }
-
-            @Override
-            public void onTabUnselected(TabLayout.Tab tab) { }
-
-            @Override
-            public void onTabReselected(TabLayout.Tab tab) { }
-        });
-    }
-
-    private void showFragment(Fragment fragment) {
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.fragment_container, fragment)
-                .commit();
+        new TabLayoutMediator(tabLayout, viewPager,
+                (tab, position) -> tab.setText(tabTitleResIds[position])
+        ).attach();
     }
 }

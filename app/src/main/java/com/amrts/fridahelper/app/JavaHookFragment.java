@@ -11,6 +11,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import com.google.android.material.snackbar.Snackbar;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
@@ -18,20 +19,25 @@ import androidx.lifecycle.ViewModelProvider;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 
 /**
  * Fragment for generating Java hook scripts from smali signatures.
- * Observes HookViewModel LiveData for results and errors.
+ * Observes HookViewModel java-specific LiveData for results and errors.
+ * Validation errors are shown inline on the TextInputLayout (field-level).
  */
 public class JavaHookFragment extends Fragment {
 
     private HookViewModel viewModel;
+    private TextInputLayout layoutSignature;
+    private TextInputLayout layoutTimeout;
     private TextInputEditText editSignature;
+    private TextInputEditText editTimeout;
     private MaterialSwitch switchFullScript;
     private TextView textOutput;
-    private TextView textError;
     private TextView labelOutput;
     private MaterialButton btnCopy;
+    private MaterialButton btnExport;
 
     @Nullable
     @Override
@@ -47,53 +53,71 @@ public class JavaHookFragment extends Fragment {
 
         viewModel = new ViewModelProvider(requireActivity()).get(HookViewModel.class);
 
+        layoutSignature = view.findViewById(R.id.layout_smali_signature);
+        layoutTimeout = view.findViewById(R.id.layout_timeout);
         editSignature = view.findViewById(R.id.edit_smali_signature);
+        editTimeout = view.findViewById(R.id.edit_timeout);
         switchFullScript = view.findViewById(R.id.switch_full_script);
         textOutput = view.findViewById(R.id.text_output);
-        textError = view.findViewById(R.id.text_error);
         labelOutput = view.findViewById(R.id.label_output);
         btnCopy = view.findViewById(R.id.btn_copy);
+        btnExport = view.findViewById(R.id.btn_export);
         MaterialButton btnGenerate = view.findViewById(R.id.btn_generate);
 
         btnGenerate.setOnClickListener(v -> onGenerate());
         btnCopy.setOnClickListener(v -> copyToClipboard());
+        btnExport.setOnClickListener(v -> exportToFile());
 
         viewModel.getIsGenerating().observe(getViewLifecycleOwner(), generating -> {
             btnGenerate.setEnabled(!Boolean.TRUE.equals(generating));
         });
 
-        viewModel.getScriptOutput().observe(getViewLifecycleOwner(), script -> {
+        viewModel.getJavaScriptOutput().observe(getViewLifecycleOwner(), script -> {
             if (script != null) {
                 labelOutput.setVisibility(View.VISIBLE);
                 textOutput.setVisibility(View.VISIBLE);
                 textOutput.setText(script);
                 btnCopy.setVisibility(View.VISIBLE);
-                textError.setVisibility(View.GONE);
+                btnExport.setVisibility(View.VISIBLE);
             }
         });
 
-        viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
+        viewModel.getJavaErrorMessage().observe(getViewLifecycleOwner(), error -> {
             if (error != null) {
-                textError.setVisibility(View.VISIBLE);
-                textError.setText(error);
+                layoutSignature.setError(error);
                 labelOutput.setVisibility(View.GONE);
                 textOutput.setVisibility(View.GONE);
                 btnCopy.setVisibility(View.GONE);
+                btnExport.setVisibility(View.GONE);
+                if (getView() != null) {
+                    Snackbar.make(getView(), error, Snackbar.LENGTH_LONG).show();
+                }
             }
         });
     }
 
     private void onGenerate() {
+        layoutSignature.setError(null);
+        layoutTimeout.setError(null);
+
         String signature = editSignature.getText() != null
                 ? editSignature.getText().toString().trim() : "";
 
         if (signature.isEmpty()) {
-            textError.setVisibility(View.VISIBLE);
-            textError.setText(R.string.msg_error_empty_signature);
+            layoutSignature.setError(getString(R.string.msg_error_empty_signature));
             return;
         }
 
-        viewModel.generateJavaHook(signature, switchFullScript.isChecked());
+        String timeoutText = editTimeout.getText() != null
+                ? editTimeout.getText().toString().trim() : "";
+        HookViewModel.ParseResult timeoutResult =
+                HookViewModel.safeParseInt(timeoutText, 0, HookViewModel.MAX_TIMEOUT_MS);
+        if (!timeoutResult.isValid()) {
+            layoutTimeout.setError(timeoutResult.getError());
+            return;
+        }
+
+        viewModel.generateJavaHook(signature, switchFullScript.isChecked(), timeoutResult.getValue());
     }
 
     private void copyToClipboard() {
@@ -105,6 +129,26 @@ public class JavaHookFragment extends Fragment {
         if (clipboard != null) {
             clipboard.setPrimaryClip(ClipData.newPlainText("FridaHelper Script", text));
             Toast.makeText(requireContext(), R.string.msg_copied, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void exportToFile() {
+        CharSequence text = textOutput.getText();
+        if (text == null || text.length() == 0) return;
+
+        ScriptExporter.ExportResult result =
+                ScriptExporter.export(requireContext(), text.toString());
+
+        if (getView() == null) return;
+
+        if (result.isSuccess()) {
+            Snackbar.make(getView(),
+                    getString(R.string.msg_exported, result.getFilename()),
+                    Snackbar.LENGTH_LONG).show();
+        } else {
+            Snackbar.make(getView(),
+                    getString(R.string.msg_export_failed, result.getError()),
+                    Snackbar.LENGTH_LONG).show();
         }
     }
 }

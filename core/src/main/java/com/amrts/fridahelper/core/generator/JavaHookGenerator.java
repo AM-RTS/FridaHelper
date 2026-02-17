@@ -11,17 +11,20 @@ import java.util.List;
 /**
  * Generates Frida Java hook scripts from smali method signatures.
  *
- * Output is backward-compatible with the original FridaHelper 2.0 format:
+ * Output format (properly indented):
  *   var cls = Java.use("com.example.Foo");
  *   cls.bar.overload("int", "java.lang.String").implementation = function(a, b){
  *       console.log("Param 1: " + a);
  *       console.log("Param 2: " + b);
  *       var retval = this.bar(a, b);
  *       console.log("Return Value: " + retval);
+ *       //console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()));
  *       return retval;
  *   }
  */
 public final class JavaHookGenerator implements ScriptGenerator {
+
+    private static final String INDENT = "    ";
 
     @Override
     public GeneratedScript generate(HookRequest request) {
@@ -40,30 +43,26 @@ public final class JavaHookGenerator implements ScriptGenerator {
         String paramNames = ParamNameGenerator.generate(paramCount);
         String methodAccess = buildMethodAccess(methodName);
         String overloadArgs = buildOverloadArgs(paramTypes);
-        String loggers = buildLoggers(paramCount);
 
         sb.append("var cls = Java.use(\"").append(className).append("\");\n");
-        sb.append(" cls").append(methodAccess).append(".overload(").append(overloadArgs)
+        sb.append("cls").append(methodAccess).append(".overload(").append(overloadArgs)
           .append(").implementation = function(").append(paramNames).append("){\n");
 
-        if (!loggers.isEmpty()) {
-            sb.append("\t\t").append(loggers).append("\n");
+        if (paramCount > 0) {
+            sb.append(buildLoggers(paramCount));
         }
 
-        sb.append(" var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
-        sb.append("\t\tconsole.log(\"Return Value: \" + retval);\n");
-        sb.append("\t//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new())),\n");
-        sb.append(" return retval;\n");
-        sb.append("   }");
+        sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
+        sb.append(INDENT).append("console.log(\"Return Value: \" + retval);\n");
+        sb.append(INDENT).append("//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n");
+        sb.append(INDENT).append("return retval;\n");
+        sb.append("}");
 
         return new GeneratedScript(sb.toString(), HookRequest.Type.JAVA);
     }
 
     /**
      * Builds the method access expression, handling obfuscated names and constructors.
-     * - Normal:      .methodName
-     * - Obfuscated:  ["MethodName"]  (bracket notation)
-     * - Constructor:  .$init
      */
     private String buildMethodAccess(String methodName) {
         if (methodName.equals("<init>")) {
@@ -77,7 +76,6 @@ public final class JavaHookGenerator implements ScriptGenerator {
 
     /**
      * Builds the overload() arguments from resolved param types.
-     * E.g. ["int", "java.lang.String"] -> "\"int\", \"java.lang.String\""
      */
     private String buildOverloadArgs(List<String> paramTypes) {
         if (paramTypes.isEmpty()) return "";
@@ -91,16 +89,13 @@ public final class JavaHookGenerator implements ScriptGenerator {
     }
 
     /**
-     * Builds console.log statements for each parameter.
+     * Builds indented console.log statements for each parameter.
      */
     private String buildLoggers(int paramCount) {
-        if (paramCount == 0) return "";
-
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < paramCount; i++) {
-            if (i > 0) sb.append("\n");
             String varName = ParamNameGenerator.nameAt(i);
-            sb.append("console.log(\"Param ").append(i + 1).append(": \" + ").append(varName).append(");");
+            sb.append(INDENT).append("console.log(\"Param ").append(i + 1).append(": \" + ").append(varName).append(");\n");
         }
         return sb.toString();
     }

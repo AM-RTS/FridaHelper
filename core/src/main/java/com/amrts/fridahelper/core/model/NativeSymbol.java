@@ -31,6 +31,9 @@ public final class NativeSymbol {
 
     public enum TargetMode { EXPORT, ADDRESS }
 
+    /** Maximum allowed argument count. No real native function exceeds this. */
+    public static final int MAX_ARG_COUNT = 256;
+
     private final String libName;       // nullable: null = wildcard
     private final String exportName;    // required for EXPORT, unused for ADDRESS
     private final String address;       // required for ADDRESS, unused for EXPORT
@@ -179,6 +182,9 @@ public final class NativeSymbol {
             }
             if (argCount < 0) {
                 throw new IllegalArgumentException("argCount must be >= 0");
+            }
+            if (argCount > MAX_ARG_COUNT) {
+                throw new IllegalArgumentException("argCount must be <= " + MAX_ARG_COUNT);
             }
             if (waitForLoad && targetMode == TargetMode.ADDRESS) {
                 throw new IllegalArgumentException("waitForLoad is not supported with ADDRESS mode");

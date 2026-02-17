@@ -13,6 +13,8 @@ import com.amrts.fridahelper.core.model.HookRequest;
  */
 public final class ScriptWrapper {
 
+    private static final String INDENT = "    ";
+
     private ScriptWrapper() { }
 
     /**
@@ -21,10 +23,7 @@ public final class ScriptWrapper {
      */
     public static GeneratedScript wrapIfNeeded(GeneratedScript script) {
         if (script.getHookType() == HookRequest.Type.JAVA) {
-            String wrapped = "Java.perform(function(){\n  "
-                    + script.getScriptText()
-                    + "\n});";
-            return new GeneratedScript(wrapped, script.getHookType());
+            return wrapInJavaPerform(script);
         }
         return script;
     }
@@ -32,11 +31,13 @@ public final class ScriptWrapper {
     /**
      * Always wraps in Java.perform(), regardless of hook type.
      * Useful when the caller explicitly wants a full script.
+     * Indents every line of the inner script by 4 spaces.
      */
     public static GeneratedScript wrapInJavaPerform(GeneratedScript script) {
-        String wrapped = "Java.perform(function(){\n  "
-                + script.getScriptText()
-                + "\n});";
+        String indented = indentBlock(script.getScriptText(), INDENT);
+        String wrapped = "Java.perform(function(){\n"
+                + indented + "\n"
+                + "});";
         return new GeneratedScript(wrapped, script.getHookType());
     }
 
@@ -51,16 +52,25 @@ public final class ScriptWrapper {
     public static GeneratedScript wrapInSetTimeout(GeneratedScript script, int delayMs) {
         if (delayMs <= 0) return script;
 
-        String[] lines = script.getScriptText().split("\n", -1);
-        StringBuilder sb = new StringBuilder("setTimeout(function() {\n");
-        for (String line : lines) {
-            if (!line.isEmpty()) {
-                sb.append("    ").append(line).append("\n");
-            } else {
-                sb.append("\n");
+        String indented = indentBlock(script.getScriptText(), INDENT);
+        String wrapped = "setTimeout(function() {\n"
+                + indented + "\n"
+                + "}, " + delayMs + ");";
+        return new GeneratedScript(wrapped, script.getHookType());
+    }
+
+    /**
+     * Indents every non-empty line of a multi-line string by the given prefix.
+     */
+    private static String indentBlock(String block, String indent) {
+        String[] lines = block.split("\n", -1);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i > 0) sb.append("\n");
+            if (!lines[i].isEmpty()) {
+                sb.append(indent).append(lines[i]);
             }
         }
-        sb.append("}, ").append(delayMs).append(");");
-        return new GeneratedScript(sb.toString(), script.getHookType());
+        return sb.toString();
     }
 }

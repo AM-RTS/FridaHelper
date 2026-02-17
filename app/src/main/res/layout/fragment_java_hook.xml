@@ -11,10 +11,11 @@
         android:orientation="vertical">
 
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_smali_signature"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/hint_smali_signature"
-            app:boxStrokeColor="@color/primary"
+            app:errorEnabled="true"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
             <com.google.android.material.textfield.TextInputEditText
@@ -23,6 +24,26 @@
                 android:layout_height="wrap_content"
                 android:inputType="text"
                 android:fontFamily="monospace"
+                android:textSize="14sp" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_timeout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/hint_timeout_ms"
+            app:errorEnabled="true"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_timeout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLength="6"
+                android:text="0"
                 android:textSize="14sp" />
 
         </com.google.android.material.textfield.TextInputLayout>
@@ -81,14 +102,14 @@
             android:visibility="gone"
             style="@style/Widget.Material3.Button.TonalButton" />
 
-        <TextView
-            android:id="@+id/text_error"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_export"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:textColor="#D32F2F"
-            android:textSize="13sp"
-            android:visibility="gone" />
+            android:text="@string/btn_export"
+            android:visibility="gone"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
 
     </LinearLayout>
 </ScrollView>

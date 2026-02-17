@@ -22,8 +22,14 @@
     <string name="radio_address">Address (ptr)</string>
     <string name="label_target_mode">Target Mode</string>
 
+    <string name="switch_wrap_perform">Wrap in Java.perform (for JNI hooks)</string>
+    <string name="btn_export">Export to File</string>
     <string name="msg_copied">Script copied to clipboard</string>
+    <string name="msg_exported">Saved: %1$s</string>
+    <string name="msg_export_failed">Export failed: %1$s</string>
     <string name="msg_error_empty_signature">Please enter a smali signature</string>
     <string name="msg_error_empty_export">Please enter an export name</string>
     <string name="msg_error_empty_address">Please enter an address</string>
+    <string name="msg_error_invalid_number">Not a valid number</string>
+    <string name="msg_error_number_too_large">Value too large (max 999999)</string>
 </resources>
