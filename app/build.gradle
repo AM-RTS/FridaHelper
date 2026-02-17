@@ -14,11 +14,31 @@ android {
         versionName '3.2.0'
     }
 
+    signingConfigs {
+        release {
+            def props = new Properties()
+            def propsFile = rootProject.file('keystore.properties')
+            if (propsFile.exists()) {
+                props.load(propsFile.newDataInputStream())
+            }
+
+            storeFile props['storeFile'] ? file(props['storeFile']) : null
+            storePassword props['storePassword'] ?: ''
+            keyAlias props['keyAlias'] ?: ''
+            keyPassword props['keyPassword'] ?: ''
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            def releaseSigningConfig = signingConfigs.release
+            if (releaseSigningConfig.storeFile != null && releaseSigningConfig.storeFile.exists()) {
+                signingConfig releaseSigningConfig
+            }
         }
     }
 

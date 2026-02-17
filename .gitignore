@@ -7,12 +7,20 @@ classes.dex
 # Gradle
 .gradle/
 gradle/
+!gradle/wrapper/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
 # IDE
 .idea/
 *.iml
 .vscode/
 .cursor/
+
+# Signing
+keystore.properties
+*.jks
+*.keystore
 
 # OS
 .DS_Store

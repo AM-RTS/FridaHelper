@@ -28,7 +28,7 @@ Or build a JAR and run directly:
 
 ```bash
 gradle jar
-java -jar build/libs/FridaHelper-3.0.0.jar
+java -jar cli/build/libs/cli-3.2.0.jar
 ```
 
 ## Usage
@@ -36,7 +36,7 @@ java -jar build/libs/FridaHelper-3.0.0.jar
 ### CLI
 
 ```
-FridaHelper 3.0.0
+FridaHelper 3.2.0
 Options:
 1. Java Hook (from smali signature)
 2. Native Hook (lib + symbol / address)
@@ -174,6 +174,47 @@ setTimeout(function() {
 }, 500);
 ```
 
+## Release Signing
+
+The release build is configured to sign the APK when a `keystore.properties` file is present.
+
+### 1. Generate a keystore
+
+```bash
+keytool -genkey -v \
+  -keystore fridahelper-release.jks \
+  -keyalg RSA -keysize 2048 \
+  -validity 10000 \
+  -alias fridahelper
+```
+
+### 2. Create `keystore.properties`
+
+Copy the example and fill in your credentials:
+
+```bash
+cp keystore.properties.example keystore.properties
+```
+
+```properties
+storeFile=fridahelper-release.jks
+storePassword=your_store_password
+keyAlias=fridahelper
+keyPassword=your_key_password
+```
+
+> **Important:** Never commit `keystore.properties` or `.jks` files. They are in `.gitignore`.
+
+### 3. Build the signed release APK
+
+```bash
+gradle :app:assembleRelease
+```
+
+The signed APK will be at `app/build/outputs/apk/release/app-release.apk`.
+
+If no `keystore.properties` is found, the release build falls back to an unsigned APK.
+
 ## Architecture
 
 ```
@@ -216,6 +257,43 @@ app/build.gradle:
 ```
 
 Your `ViewModel` calls `ScriptGenerator.generate(request)` and exposes the result via `LiveData<GeneratedScript>`. Fragments observe and display. The `core` module is tested with plain JUnit — no Android instrumentation needed.
+
+## CI/CD (GitHub Actions)
+
+The project includes a GitHub Actions workflow (`.github/workflows/android.yml`) that:
+
+1. **On every push/PR to `main`:** Runs core JUnit tests, builds CLI JAR, builds debug + release APK
+2. **On tag push (`v*`):** Creates a GitHub Release with all artifacts attached
+
+### Setting up signing secrets
+
+To produce **signed** release APKs in CI, add these secrets to your repo (Settings > Secrets and variables > Actions):
+
+| Secret | Description |
+|--------|-------------|
+| `KEYSTORE_BASE64` | Base64-encoded `.jks` keystore file |
+| `STORE_PASSWORD` | Keystore password |
+| `KEY_ALIAS` | Key alias (e.g. `fridahelper`) |
+| `KEY_PASSWORD` | Key password |
+
+To encode your keystore:
+
+```bash
+base64 -w 0 fridahelper-release.jks > keystore-base64.txt
+```
+
+Then paste the contents of `keystore-base64.txt` as the `KEYSTORE_BASE64` secret.
+
+### Creating a release
+
+```bash
+git tag v3.2.0
+git push origin v3.2.0
+```
+
+The workflow will automatically build, sign, and publish the release.
+
+> **Without secrets configured**, the workflow still builds everything — the release APK will just be unsigned.
 
 ## Acknowledgements
 
