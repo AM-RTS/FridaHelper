@@ -58,10 +58,17 @@ public final class JavaHookGenerator implements ScriptGenerator {
             sb.append(buildLoggers(paramTypes));
         }
 
-        sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
-        sb.append(INDENT).append("console.log(\"Return Value: \" + retval);\n");
+        boolean isVoid = "void".equals(method.getReturnType());
+        if (isVoid) {
+            sb.append(INDENT).append("this").append(methodAccess).append("(").append(paramNames).append(");\n");
+        } else {
+            sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
+            sb.append(INDENT).append("console.log(\"Return Value: \" + retval);\n");
+        }
         sb.append(INDENT).append("//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n");
-        sb.append(INDENT).append("return retval;\n");
+        if (!isVoid) {
+            sb.append(INDENT).append("return retval;\n");
+        }
         sb.append("}");
 
         return new GeneratedScript(sb.toString(), HookRequest.Type.JAVA);

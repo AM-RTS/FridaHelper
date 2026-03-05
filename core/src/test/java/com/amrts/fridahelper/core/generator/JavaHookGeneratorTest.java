@@ -40,10 +40,8 @@ public class JavaHookGeneratorTest {
               + "foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
               + "    console.log(\"Param 1: \" + i);\n"
               + "    console.log(\"Param 2: \" + str);\n"
-              + "    var retval = this.bar(i, str);\n"
-              + "    console.log(\"Return Value: \" + retval);\n"
+              + "    this.bar(i, str);\n"
               + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
-              + "    return retval;\n"
               + "}";
 
         assertEquals(expected, result.getScriptText());
@@ -139,10 +137,8 @@ public class JavaHookGeneratorTest {
               + "    foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
               + "        console.log(\"Param 1: \" + i);\n"
               + "        console.log(\"Param 2: \" + str);\n"
-              + "        var retval = this.bar(i, str);\n"
-              + "        console.log(\"Return Value: \" + retval);\n"
+              + "        this.bar(i, str);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
-              + "        return retval;\n"
               + "    }\n"
               + "});";
 
@@ -230,6 +226,43 @@ public class JavaHookGeneratorTest {
         GeneratedScript result = generator.generate(request);
         String script = result.getScriptText();
         assertTrue(script.contains("function(i, a, str)"));
+    }
+
+    /**
+     * Void method: no retval capture, no return value log, no return statement.
+     */
+    @Test
+    public void voidMethodOmitsReturnValue() {
+        SmaliMethod method = new SmaliMethod(
+                "com.example.Foo", "doWork",
+                Arrays.asList("int"), "void");
+        HookRequest request = HookRequest.java(method);
+
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+
+        assertTrue(script.contains("this.doWork(i);"));
+        assertFalse(script.contains("var retval"));
+        assertFalse(script.contains("Return Value"));
+        assertFalse(script.contains("return retval"));
+    }
+
+    /**
+     * Non-void method: captures retval, logs it, returns it.
+     */
+    @Test
+    public void nonVoidMethodCapturesReturnValue() {
+        SmaliMethod method = new SmaliMethod(
+                "com.example.Foo", "compute",
+                Arrays.asList("int"), "int");
+        HookRequest request = HookRequest.java(method);
+
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+
+        assertTrue(script.contains("var retval = this.compute(i);"));
+        assertTrue(script.contains("console.log(\"Return Value: \" + retval)"));
+        assertTrue(script.contains("return retval;"));
     }
 
     /**
