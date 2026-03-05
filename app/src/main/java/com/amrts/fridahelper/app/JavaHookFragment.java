@@ -119,13 +119,13 @@ public class JavaHookFragment extends Fragment {
         });
 
         viewModel.getComposedScriptOutput().observe(getViewLifecycleOwner(), script -> {
-            if (script != null) {
+            if (script != null && isResumed()) {
                 showOutput(script);
             }
         });
 
         viewModel.getComposedErrorMessage().observe(getViewLifecycleOwner(), error -> {
-            if (error != null && getView() != null) {
+            if (error != null && isResumed() && getView() != null) {
                 Snackbar.make(getView(), error, Snackbar.LENGTH_LONG).show();
             }
         });

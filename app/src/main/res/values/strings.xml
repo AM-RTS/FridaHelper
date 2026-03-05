@@ -30,6 +30,7 @@
     <string name="msg_error_empty_signature">Please enter a smali signature</string>
     <string name="msg_error_empty_export">Please enter an export name</string>
     <string name="msg_error_empty_address">Please enter an address</string>
+    <string name="msg_error_waitforload_requires_lib">Wait for load requires a library name</string>
     <string name="msg_error_invalid_number">Not a valid number</string>
     <string name="msg_error_number_too_large">Value too large (max 999999)</string>
 
@@ -42,6 +43,11 @@
     <string name="btn_queue_remove">Remove hook</string>
     <string name="msg_hook_added">Hook added. Queue: %1$d</string>
     <string name="msg_queue_cleared">Queue cleared</string>
+
+    <!-- Compose dialog -->
+    <string name="dialog_compose_title">Compose Options</string>
+    <string name="dialog_compose_positive">Compose</string>
+    <string name="dialog_compose_negative">Cancel</string>
 
     <!-- Theme -->
     <string name="action_toggle_theme">Toggle theme</string>

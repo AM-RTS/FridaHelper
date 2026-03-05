@@ -28,7 +28,7 @@ Or build a JAR and run directly:
 
 ```bash
 gradle jar
-java -jar cli/build/libs/cli-3.2.0.jar
+java -jar cli/build/libs/cli-3.3.0.jar
 ```
 
 ## Usage
@@ -36,7 +36,7 @@ java -jar cli/build/libs/cli-3.2.0.jar
 ### CLI
 
 ```
-FridaHelper 3.2.0
+FridaHelper 3.3.0
 Options:
 1. Java Hook (from smali signature)
 2. Native Hook (lib + symbol / address)
@@ -287,8 +287,8 @@ Then paste the contents of `keystore-base64.txt` as the `KEYSTORE_BASE64` secret
 ### Creating a release
 
 ```bash
-git tag v3.2.0
-git push origin v3.2.0
+git tag v3.3.0
+git push origin v3.3.0
 ```
 
 The workflow will automatically build, sign, and publish the release.

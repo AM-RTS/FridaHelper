@@ -33,9 +33,9 @@ public final class ComposeDialogHelper {
         checkPerform.setChecked(true);
 
         new MaterialAlertDialogBuilder(context)
-                .setTitle("Compose Options")
+                .setTitle(R.string.dialog_compose_title)
                 .setView(dialogView)
-                .setPositiveButton("Compose", (dialog, which) -> {
+                .setPositiveButton(R.string.dialog_compose_positive, (dialog, which) -> {
                     boolean wrapInPerform = checkPerform.isChecked();
                     int timeoutMs = 0;
                     try {
@@ -52,7 +52,7 @@ public final class ComposeDialogHelper {
                             .build();
                     listener.onCompose(options);
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.dialog_compose_negative, null)
                 .show();
     }
 }

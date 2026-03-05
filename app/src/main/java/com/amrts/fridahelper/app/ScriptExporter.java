@@ -31,8 +31,9 @@ public final class ScriptExporter {
     private static final String PREFIX = "frida_hook_";
     private static final String EXTENSION = ".js";
     private static final String MIME_TYPE = "application/javascript";
-    private static final SimpleDateFormat DATE_FORMAT =
-            new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US);
+    private static String timestamp() {
+        return new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+    }
 
     private ScriptExporter() { }
 
@@ -69,7 +70,7 @@ public final class ScriptExporter {
      * @return ExportResult with filename on success, error message on failure
      */
     public static ExportResult export(Context context, String scriptContent) {
-        String filename = PREFIX + DATE_FORMAT.format(new Date()) + EXTENSION;
+        String filename = PREFIX + timestamp() + EXTENSION;
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

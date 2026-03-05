@@ -9,6 +9,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import androidx.recyclerview.widget.DiffUtil;
+
 import com.amrts.fridahelper.core.model.HookRequest;
 import com.amrts.fridahelper.core.model.NativeSymbol;
 import com.amrts.fridahelper.core.model.SmaliMethod;
@@ -38,8 +40,20 @@ public final class HookQueueAdapter extends RecyclerView.Adapter<HookQueueAdapte
      * Replaces the entire dataset and refreshes the list.
      */
     public void submitList(List<HookRequest> newItems) {
-        this.items = newItems != null ? new ArrayList<>(newItems) : new ArrayList<>();
-        notifyDataSetChanged();
+        List<HookRequest> oldItems = this.items;
+        List<HookRequest> updated = newItems != null ? new ArrayList<>(newItems) : new ArrayList<>();
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override public int getOldListSize() { return oldItems.size(); }
+            @Override public int getNewListSize() { return updated.size(); }
+            @Override public boolean areItemsTheSame(int oldPos, int newPos) {
+                return oldItems.get(oldPos) == updated.get(newPos);
+            }
+            @Override public boolean areContentsTheSame(int oldPos, int newPos) {
+                return oldItems.get(oldPos).equals(updated.get(newPos));
+            }
+        });
+        this.items = updated;
+        diff.dispatchUpdatesTo(this);
     }
 
     @NonNull

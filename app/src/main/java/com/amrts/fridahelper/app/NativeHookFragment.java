@@ -144,13 +144,13 @@ public class NativeHookFragment extends Fragment {
         });
 
         viewModel.getComposedScriptOutput().observe(getViewLifecycleOwner(), script -> {
-            if (script != null) {
+            if (script != null && isResumed()) {
                 showOutput(script);
             }
         });
 
         viewModel.getComposedErrorMessage().observe(getViewLifecycleOwner(), error -> {
-            if (error != null && getView() != null) {
+            if (error != null && isResumed() && getView() != null) {
                 Snackbar.make(getView(), error, Snackbar.LENGTH_LONG).show();
             }
         });
@@ -198,11 +198,16 @@ public class NativeHookFragment extends Fragment {
                 hasError = true;
             }
 
+            if (switchWaitForLoad.isChecked() && libName.isEmpty()) {
+                layoutLibName.setError(getString(R.string.msg_error_waitforload_requires_lib));
+                hasError = true;
+            }
+
             if (!hasError) {
                 builder.libName(libName.isEmpty() ? null : libName);
                 builder.exportName(exportName);
 
-                if (switchWaitForLoad.isChecked() && !libName.isEmpty()) {
+                if (switchWaitForLoad.isChecked()) {
                     builder.waitForLoad(true);
                 }
             }
