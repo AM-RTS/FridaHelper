@@ -133,6 +133,26 @@ public class NativeHookGeneratorTest {
         assertEquals(expected, result.getScriptText());
     }
 
+    /**
+     * Address mode with library name should produce base+offset pattern.
+     */
+    @Test
+    public void generateAddressWithLibraryHook() {
+        NativeSymbol symbol = new NativeSymbol.Builder()
+                .libName("libnative.so")
+                .address("0x1234")
+                .argCount(2)
+                .build();
+        HookRequest request = HookRequest.nativeHook(symbol);
+        GeneratedScript result = generator.generate(request);
+
+        String script = result.getScriptText();
+        assertTrue(script.contains("Module.findBaseAddress(\"libnative.so\").add(ptr(\"0x1234\"))"));
+        assertTrue(script.contains("console.log(\"[*] Called 0x1234\")"));
+        assertTrue(script.contains("console.log(\"Arg 0: \" + args[0])"));
+        assertTrue(script.contains("console.log(\"Arg 1: \" + args[1])"));
+    }
+
     // ===== Wait for load =====
 
     /**

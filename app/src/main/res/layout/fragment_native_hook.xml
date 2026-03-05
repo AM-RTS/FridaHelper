@@ -42,61 +42,54 @@
 
         </RadioGroup>
 
-        <!-- Export mode fields -->
-        <LinearLayout
-            android:id="@+id/layout_export_fields"
+        <!-- Library name (shared between export and address modes) -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_lib_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:layout_marginTop="12dp">
+            android:layout_marginTop="12dp"
+            android:hint="@string/hint_lib_name"
+            app:errorEnabled="true"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/layout_lib_name"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_lib_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/hint_lib_name"
-                app:errorEnabled="true"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                android:inputType="text"
+                android:maxLength="256"
+                android:fontFamily="monospace"
+                android:textSize="14sp" />
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/edit_lib_name"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:maxLength="256"
-                    android:fontFamily="monospace"
-                    android:textSize="14sp" />
+        </com.google.android.material.textfield.TextInputLayout>
 
-            </com.google.android.material.textfield.TextInputLayout>
+        <!-- Export mode field -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/layout_export_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/hint_export_name"
+            app:errorEnabled="true"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/layout_export_name"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_export_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="@string/hint_export_name"
-                app:errorEnabled="true"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                android:inputType="text"
+                android:maxLength="512"
+                android:fontFamily="monospace"
+                android:textSize="14sp" />
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/edit_export_name"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="text"
-                    android:maxLength="512"
-                    android:fontFamily="monospace"
-                    android:textSize="14sp" />
-
-            </com.google.android.material.textfield.TextInputLayout>
-
-        </LinearLayout>
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Address mode field -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/layout_address_field"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:hint="@string/hint_address"
             android:visibility="gone"
             app:errorEnabled="true"

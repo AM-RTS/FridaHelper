@@ -36,7 +36,6 @@ public class NativeHookFragment extends Fragment {
 
     private HookViewModel viewModel;
     private RadioGroup radioTargetMode;
-    private View layoutExportFields;
     private TextInputLayout layoutLibName;
     private TextInputLayout layoutExportName;
     private TextInputLayout layoutAddressField;
@@ -75,7 +74,6 @@ public class NativeHookFragment extends Fragment {
         viewModel = new ViewModelProvider(requireActivity()).get(HookViewModel.class);
 
         radioTargetMode = view.findViewById(R.id.radio_target_mode);
-        layoutExportFields = view.findViewById(R.id.layout_export_fields);
         layoutLibName = view.findViewById(R.id.layout_lib_name);
         layoutExportName = view.findViewById(R.id.layout_export_name);
         layoutAddressField = view.findViewById(R.id.layout_address_field);
@@ -109,7 +107,7 @@ public class NativeHookFragment extends Fragment {
 
         radioTargetMode.setOnCheckedChangeListener((group, checkedId) -> {
             boolean isExport = checkedId == R.id.radio_export;
-            layoutExportFields.setVisibility(isExport ? View.VISIBLE : View.GONE);
+            layoutExportName.setVisibility(isExport ? View.VISIBLE : View.GONE);
             layoutAddressField.setVisibility(isExport ? View.GONE : View.VISIBLE);
         });
 
@@ -189,8 +187,10 @@ public class NativeHookFragment extends Fragment {
 
         NativeSymbol.Builder builder = new NativeSymbol.Builder();
 
+        String libName = getText(editLibName);
+        builder.libName(libName.isEmpty() ? null : libName);
+
         if (isExportMode) {
-            String libName = getText(editLibName);
             String exportName = getText(editExportName);
 
             if (exportName.isEmpty()) {
@@ -204,7 +204,6 @@ public class NativeHookFragment extends Fragment {
             }
 
             if (!hasError) {
-                builder.libName(libName.isEmpty() ? null : libName);
                 builder.exportName(exportName);
 
                 if (switchWaitForLoad.isChecked()) {

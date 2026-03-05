@@ -91,6 +91,9 @@ public final class NativeHookGenerator implements ScriptGenerator {
      */
     private String buildTargetExpression(NativeSymbol symbol) {
         if (symbol.getTargetMode() == NativeSymbol.TargetMode.ADDRESS) {
+            if (symbol.getLibName() != null) {
+                return "Module.findBaseAddress(\"" + symbol.getLibName() + "\").add(ptr(\"" + symbol.getAddress() + "\"))";
+            }
             return "ptr(\"" + symbol.getAddress() + "\")";
         }
 

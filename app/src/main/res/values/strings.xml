@@ -12,7 +12,7 @@
     <string name="switch_full_script">Wrap in Java.perform</string>
 
     <!-- Native Hook Fragment -->
-    <string name="hint_lib_name">Library name (empty = null/wildcard)</string>
+    <string name="hint_lib_name">Library name (optional, e.g. libnative.so)</string>
     <string name="hint_export_name">Export/symbol name</string>
     <string name="hint_address">Address (e.g. 0xDEAD)</string>
     <string name="hint_arg_count">Number of arguments</string>
