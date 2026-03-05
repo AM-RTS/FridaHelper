@@ -1,6 +1,6 @@
 # FridaHelper — Architecture & Code Reference
 
-**Version:** 3.4.0 (code 5)
+**Version:** 3.4.1 (code 6)
 **Package:** `com.amrts.fridahelper`
 **Min SDK:** 24 · **Target/Compile:** 34
 **Language:** Java 8
@@ -28,14 +28,14 @@ core/
   generator/
     ScriptGenerator    — Interface: generate(HookRequest) + generateBody(HookRequest)
     JavaHookGenerator  — Java.use + overload().implementation script; smart class/param variable naming
-    NativeHookGenerator — Interceptor.attach / Module.findExportByName / waitForLoad script
+    NativeHookGenerator — Interceptor.attach / Module.findExportByName / waitForLoad (dynamic resolution inside onLibLoaded)
     ScriptWrapper      — Static wrappers: Java.perform, setTimeout, setImmediate
     ScriptComposer     — Merges N hooks → single script (top-level waitForLoad + wrapped bodies)
     CompositionOptions — Builder: wrapInPerform, setTimeoutMs
   util/
     ParamNameGenerator — Type-aware param names (int→i, String→str; numbered on duplicates; abc fallback)
     ObfuscationDetector — Heuristic: non-ASCII (≥ U+0140) or short (< 3 chars) → obfuscated/unsuitable
-  FridaHelperVersion   — Central VERSION constant ("3.4.0")
+  FridaHelperVersion   — Central VERSION constant ("3.4.1")
 
 app/
   MainActivity         — AppCompat host: Toolbar + TabLayout + ViewPager2. Theme toggle only.
@@ -76,7 +76,7 @@ Multi-hook:
 
 - **Tagged union** (`HookRequest`) instead of inheritance — simpler for two variants in Java 8.
 - **`generate()` vs `generateBody()`** — `generate()` produces full script with wrappers; `generateBody()` produces raw hook body for composition.
-- **Top-level placement** — `waitForLoad` hooks define top-level functions, emitted before wrapped section.
+- **Top-level placement** — `waitForLoad` hooks define top-level `onLibLoaded`/`waitForLibLoading` functions; `Interceptor.attach` uses the dynamically resolved `nativeMethod` variable inside `onLibLoaded` callback.
 - **Single-thread executor** in ViewModel — serializes generation, prevents races, no coroutines needed.
 - **`isResumed()` guard** on composed output — prevents stale display in inactive ViewPager2 tab.
 - **DiffUtil** in HookQueueAdapter — smooth animations instead of `notifyDataSetChanged()`.

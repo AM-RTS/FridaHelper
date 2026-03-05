@@ -10,13 +10,9 @@ import com.amrts.fridahelper.core.model.NativeSymbol;
  * Supports:
  * - Export-based hooks:  Module.findExportByName("lib.so", "func")
  * - Export with null lib: Module.findExportByName(null, "func")
- * - Address-based hooks: ptr("0x1234")
+ * - Address-based hooks: ptr("0x1234") or Module.findBaseAddress("lib").add(ptr("0x..."))
  * - Wait-for-load wrapper: android_dlopen_ext interception pattern
  * - setTimeout wrapper: delayed execution for timing-sensitive hooks
- *
- * The generator produces the core hook body. Wait-for-load and setTimeout
- * are composed as wrappers around the body (not baked in), keeping each
- * concern isolated and testable.
  */
 public final class NativeHookGenerator implements ScriptGenerator {
 
@@ -28,15 +24,12 @@ public final class NativeHookGenerator implements ScriptGenerator {
         }
 
         NativeSymbol symbol = request.getNativeSymbol();
-
-        // Build the core Interceptor.attach body
-        String hookBody = buildInterceptorAttach(symbol);
-
-        // Apply optional wrappers
-        String script = hookBody;
+        String script;
 
         if (symbol.isWaitForLoad()) {
-            script = wrapInWaitForLoad(script, symbol.getLibName(), symbol.getExportName());
+            script = buildWaitForLoadScript(symbol);
+        } else {
+            script = buildInterceptorAttach(symbol);
         }
 
         if (symbol.getSetTimeoutMs() > 0) {
@@ -58,19 +51,17 @@ public final class NativeHookGenerator implements ScriptGenerator {
         return new GeneratedScript(hookBody, HookRequest.Type.NATIVE);
     }
 
-    /**
-     * Builds the core Interceptor.attach block.
-     */
     private String buildInterceptorAttach(NativeSymbol symbol) {
-        StringBuilder sb = new StringBuilder();
-        String targetExpr = buildTargetExpression(symbol);
-        String label = buildLabel(symbol);
+        return buildInterceptorBlock(buildTargetExpression(symbol), buildLabel(symbol), symbol.getArgCount());
+    }
 
+    private String buildInterceptorBlock(String targetExpr, String label, int argCount) {
+        StringBuilder sb = new StringBuilder();
         sb.append("Interceptor.attach(").append(targetExpr).append(", {\n");
         sb.append("    onEnter: function(args) {\n");
         sb.append("        console.log(\"[*] Called ").append(label).append("\");\n");
 
-        for (int i = 0; i < symbol.getArgCount(); i++) {
+        for (int i = 0; i < argCount; i++) {
             sb.append("        console.log(\"Arg ").append(i).append(": \" + args[").append(i).append("]);\n");
         }
 
@@ -79,16 +70,9 @@ public final class NativeHookGenerator implements ScriptGenerator {
         sb.append("        console.log(\"Return: \" + retval);\n");
         sb.append("    }\n");
         sb.append("});");
-
         return sb.toString();
     }
 
-    /**
-     * Builds the JS expression that resolves the target address.
-     * - EXPORT + lib:     Module.findExportByName("lib.so", "func")
-     * - EXPORT + null lib: Module.findExportByName(null, "func")
-     * - ADDRESS:          ptr("0x1234")
-     */
     private String buildTargetExpression(NativeSymbol symbol) {
         if (symbol.getTargetMode() == NativeSymbol.TargetMode.ADDRESS) {
             if (symbol.getLibName() != null) {
@@ -104,9 +88,6 @@ public final class NativeHookGenerator implements ScriptGenerator {
         return "Module.findExportByName(" + libArg + ", \"" + symbol.getExportName() + "\")";
     }
 
-    /**
-     * Human-readable label for the console.log header line.
-     */
     private String buildLabel(NativeSymbol symbol) {
         if (symbol.getTargetMode() == NativeSymbol.TargetMode.ADDRESS) {
             return symbol.getAddress();
@@ -115,17 +96,20 @@ public final class NativeHookGenerator implements ScriptGenerator {
     }
 
     /**
-     * Wraps the hook body in the android_dlopen_ext wait-for-load pattern.
-     * This intercepts library loading and attaches the hook only after the target lib is loaded.
+     * Builds the full waitForLoad script. Uses nativeMethod variable resolved
+     * from the dynamic libName parameter passed at runtime by the dlopen interceptor.
      */
-    private String wrapInWaitForLoad(String hookBody, String libName, String exportName) {
-        String indent = "    ";
-        String indentedBody = indentBlock(hookBody, indent);
+    private String buildWaitForLoadScript(NativeSymbol symbol) {
+        String exportName = symbol.getExportName();
+        int argCount = symbol.getArgCount();
+
+        String innerBody = buildInterceptorBlock("nativeMethod", exportName, argCount);
+        String indentedInner = indentBlock(innerBody, "    ");
 
         StringBuilder sb = new StringBuilder();
         sb.append("function onLibLoaded(libName) {\n");
         sb.append("    var nativeMethod = Module.findExportByName(libName, \"").append(exportName).append("\");\n");
-        sb.append(indentedBody).append("\n");
+        sb.append(indentedInner).append("\n");
         sb.append("}\n\n");
         sb.append("function waitForLibLoading(libraryName) {\n");
         sb.append("    var isLibLoaded = false;\n\n");
@@ -145,14 +129,11 @@ public final class NativeHookGenerator implements ScriptGenerator {
         sb.append("        }\n");
         sb.append("    });\n");
         sb.append("}\n\n");
-        sb.append("waitForLibLoading(\"").append(libName).append("\");");
+        sb.append("waitForLibLoading(\"").append(symbol.getLibName()).append("\");");
 
         return sb.toString();
     }
 
-    /**
-     * Wraps the script in setTimeout(function(){ ... }, ms).
-     */
     private String wrapInSetTimeout(String script, int ms) {
         String indented = indentBlock(script, "    ");
         return "setTimeout(function() {\n"
@@ -160,9 +141,6 @@ public final class NativeHookGenerator implements ScriptGenerator {
                 + "}, " + ms + ");";
     }
 
-    /**
-     * Indents every line of a multi-line string by the given prefix.
-     */
     private String indentBlock(String block, String indent) {
         String[] lines = block.split("\n", -1);
         StringBuilder sb = new StringBuilder();
