@@ -6,7 +6,10 @@ A modular Java tool for generating [Frida](https://frida.re/) hook scripts from 
 
 - **Java Hook Generation** — Paste a smali method signature, get a ready-to-use Frida `Java.perform` hook script with parameter logging.
 - **Native Hook Generation** — Export-based or address-based `Interceptor.attach` scripts with optional library wait and setTimeout.
+- **Smart Variable Naming** — Generated scripts use meaningful names derived from class and type info (e.g. `networkManager` instead of `cls`, `str` instead of `a`). Falls back to simple naming for obfuscated/ProGuard code.
+- **Multi-Hook Composition** — Queue multiple Java and Native hooks and compose them into a single script with shared wrappers.
 - **Modular Core** — The `core` package has zero I/O dependencies and can be embedded in any Java/Android application.
+- **Android App** — Material 3 UI with tabbed Java/Native hook generation, hook queue, script export, and theme toggle.
 - **CLI Interface** — Interactive command-line tool for quick script generation.
 
 ## Build
@@ -28,7 +31,7 @@ Or build a JAR and run directly:
 
 ```bash
 gradle jar
-java -jar cli/build/libs/cli-3.3.0.jar
+java -jar cli/build/libs/cli-3.4.0.jar
 ```
 
 ## Usage
@@ -36,7 +39,7 @@ java -jar cli/build/libs/cli-3.3.0.jar
 ### CLI
 
 ```
-FridaHelper 3.3.0
+FridaHelper 3.4.0
 Options:
 1. Java Hook (from smali signature)
 2. Native Hook (lib + symbol / address)
@@ -54,15 +57,15 @@ Lcom/example/Foo;->bar(ILjava/lang/String;)V
 Output (script mode):
 ```javascript
 Java.perform(function(){
-  var cls = Java.use("com.example.Foo");
-   cls.bar.overload("int", "java.lang.String").implementation = function(a, b){
-		console.log("Param 1: " + a);
-console.log("Param 2: " + b);
-   var retval = this.bar(a, b);
-		console.log("Return Value: " + retval);
-	//console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new())),
-   return retval;
-   }
+    var foo = Java.use("com.example.Foo");
+    foo.bar.overload("int", "java.lang.String").implementation = function(i, str){
+        console.log("Param 1: " + i);
+        console.log("Param 2: " + str);
+        var retval = this.bar(i, str);
+        console.log("Return Value: " + retval);
+        //console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()));
+        return retval;
+    }
 });
 ```
 
@@ -228,10 +231,22 @@ com.amrts.fridahelper/
       GeneratedScript      # Result wrapper
     parser/                # Smali signature + type descriptor parsing
     generator/             # ScriptGenerator interface + implementations
-      JavaHookGenerator    # Java.use / overload / implementation
+      JavaHookGenerator    # Java.use / overload / implementation (smart class+param naming)
       NativeHookGenerator  # Interceptor.attach (export / address / waitForLoad / setTimeout)
       ScriptWrapper        # Java.perform / setTimeout wrapping
-    util/                  # Param naming, obfuscation detection
+      ScriptComposer       # Merges N hooks into single script
+      CompositionOptions   # Wrapper config for composition
+    util/
+      ParamNameGenerator   # Type-aware param names (int→i, String→str; abc fallback)
+      ObfuscationDetector  # Non-ASCII / short-name detection for variable suitability
+  app/                     # Android UI (MVVM, Material 3)
+    MainActivity           # Toolbar + TabLayout + ViewPager2
+    HookViewModel          # Shared ViewModel with single-thread executor
+    JavaHookFragment       # Java hook tab
+    NativeHookFragment     # Native hook tab
+    HookQueueAdapter       # RecyclerView + DiffUtil for queue
+    ScriptExporter         # Save scripts to Documents
+    ThemeManager           # Light / Dark / System toggle
   cli/                     # Thin CLI layer (all I/O lives here)
 ```
 
@@ -287,8 +302,8 @@ Then paste the contents of `keystore-base64.txt` as the `KEYSTORE_BASE64` secret
 ### Creating a release
 
 ```bash
-git tag v3.3.0
-git push origin v3.3.0
+git tag v3.4.0
+git push origin v3.4.0
 ```
 
 The workflow will automatically build, sign, and publish the release.
