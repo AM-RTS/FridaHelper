@@ -12,11 +12,11 @@ import java.util.List;
  * Generates Frida Java hook scripts from smali method signatures.
  *
  * Output format (properly indented):
- *   var cls = Java.use("com.example.Foo");
- *   cls.bar.overload("int", "java.lang.String").implementation = function(a, b){
- *       console.log("Param 1: " + a);
- *       console.log("Param 2: " + b);
- *       var retval = this.bar(a, b);
+ *   var networkManager = Java.use("com.example.NetworkManager");
+ *   networkManager.sendRequest.overload("java.lang.String", "int").implementation = function(str, i){
+ *       console.log("Param 1: " + str);
+ *       console.log("Param 2: " + i);
+ *       var retval = this.sendRequest(str, i);
  *       console.log("Return Value: " + retval);
  *       //console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()));
  *       return retval;
@@ -45,16 +45,17 @@ public final class JavaHookGenerator implements ScriptGenerator {
         List<String> paramTypes = method.getParamTypes();
         int paramCount = paramTypes.size();
 
-        String paramNames = ParamNameGenerator.generate(paramCount);
+        String varName = deriveClassVariable(className);
+        String paramNames = ParamNameGenerator.generate(paramTypes);
         String methodAccess = buildMethodAccess(methodName);
         String overloadArgs = buildOverloadArgs(paramTypes);
 
-        sb.append("var cls = Java.use(\"").append(className).append("\");\n");
-        sb.append("cls").append(methodAccess).append(".overload(").append(overloadArgs)
+        sb.append("var ").append(varName).append(" = Java.use(\"").append(className).append("\");\n");
+        sb.append(varName).append(methodAccess).append(".overload(").append(overloadArgs)
           .append(").implementation = function(").append(paramNames).append("){\n");
 
         if (paramCount > 0) {
-            sb.append(buildLoggers(paramCount));
+            sb.append(buildLoggers(paramTypes));
         }
 
         sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
@@ -67,8 +68,18 @@ public final class JavaHookGenerator implements ScriptGenerator {
     }
 
     /**
-     * Builds the method access expression, handling obfuscated names and constructors.
+     * Derives a JavaScript variable name from the fully-qualified class name.
+     * Extracts the simple name, lowercases the first character.
+     * Falls back to "cls" if the name is obfuscated or too short.
      */
+    static String deriveClassVariable(String className) {
+        if (className == null || className.isEmpty()) return "cls";
+        int dot = className.lastIndexOf('.');
+        String simple = dot >= 0 ? className.substring(dot + 1) : className;
+        if (ObfuscationDetector.isUnsuitableForVariable(simple)) return "cls";
+        return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+    }
+
     private String buildMethodAccess(String methodName) {
         if (methodName.equals("<init>")) {
             return ".$init";
@@ -79,9 +90,6 @@ public final class JavaHookGenerator implements ScriptGenerator {
         return "." + methodName;
     }
 
-    /**
-     * Builds the overload() arguments from resolved param types.
-     */
     private String buildOverloadArgs(List<String> paramTypes) {
         if (paramTypes.isEmpty()) return "";
 
@@ -93,14 +101,12 @@ public final class JavaHookGenerator implements ScriptGenerator {
         return sb.toString();
     }
 
-    /**
-     * Builds indented console.log statements for each parameter.
-     */
-    private String buildLoggers(int paramCount) {
+    private String buildLoggers(List<String> paramTypes) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < paramCount; i++) {
-            String varName = ParamNameGenerator.nameAt(i);
-            sb.append(INDENT).append("console.log(\"Param ").append(i + 1).append(": \" + ").append(varName).append(");\n");
+        String names = ParamNameGenerator.generate(paramTypes);
+        String[] nameArr = names.split(", ");
+        for (int i = 0; i < nameArr.length; i++) {
+            sb.append(INDENT).append("console.log(\"Param ").append(i + 1).append(": \" + ").append(nameArr[i]).append(");\n");
         }
         return sb.toString();
     }

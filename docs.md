@@ -1,6 +1,6 @@
 # FridaHelper — Architecture & Code Reference
 
-**Version:** 3.3.1 (code 4)
+**Version:** 3.4.0 (code 5)
 **Package:** `com.amrts.fridahelper`
 **Min SDK:** 24 · **Target/Compile:** 34
 **Language:** Java 8
@@ -27,15 +27,15 @@ core/
     ParamTypeResolver    — JVM type descriptor → Java type name (e.g. "Ljava/lang/String;" → "java.lang.String")
   generator/
     ScriptGenerator    — Interface: generate(HookRequest) + generateBody(HookRequest)
-    JavaHookGenerator  — Java.use + overload().implementation script
+    JavaHookGenerator  — Java.use + overload().implementation script; smart class/param variable naming
     NativeHookGenerator — Interceptor.attach / Module.findExportByName / waitForLoad script
     ScriptWrapper      — Static wrappers: Java.perform, setTimeout, setImmediate
     ScriptComposer     — Merges N hooks → single script (top-level waitForLoad + wrapped bodies)
     CompositionOptions — Builder: wrapInPerform, setTimeoutMs
   util/
-    ParamNameGenerator — a,b,c… parameter names (ThreadLocal counter)
-    ObfuscationDetector — Heuristic: single-letter class/method → likely obfuscated
-  FridaHelperVersion   — Central VERSION constant ("3.3.1")
+    ParamNameGenerator — Type-aware param names (int→i, String→str; numbered on duplicates; abc fallback)
+    ObfuscationDetector — Heuristic: non-ASCII (≥ U+0140) or short (< 3 chars) → obfuscated/unsuitable
+  FridaHelperVersion   — Central VERSION constant ("3.4.0")
 
 app/
   MainActivity         — AppCompat host: Toolbar + TabLayout + ViewPager2. Theme toggle only.
@@ -81,6 +81,7 @@ Multi-hook:
 - **`isResumed()` guard** on composed output — prevents stale display in inactive ViewPager2 tab.
 - **DiffUtil** in HookQueueAdapter — smooth animations instead of `notifyDataSetChanged()`.
 - **Per-call SimpleDateFormat** in ScriptExporter — avoids thread-safety issues with static formatter.
+- **Smart variable naming** — class variable derived from simple class name (camelCased), falls back to `cls` if obfuscated or < 3 chars. Param names are type-aware (`i`, `str`, `b` …) with numbering only on duplicate types; unknown types fall back to `a, b, c`.
 
 ## Layouts
 

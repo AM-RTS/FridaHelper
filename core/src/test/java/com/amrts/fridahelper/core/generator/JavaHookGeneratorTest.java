@@ -22,6 +22,7 @@ public class JavaHookGeneratorTest {
     /**
      * Standard test: method with 2 params.
      * Input smali equivalent: Lcom/example/Foo;->bar(ILjava/lang/String;)V
+     * Expected: var foo (from "Foo"), params i (int), str (String)
      */
     @Test
     public void generateWithTwoParams() {
@@ -35,11 +36,11 @@ public class JavaHookGeneratorTest {
         assertEquals(HookRequest.Type.JAVA, result.getHookType());
 
         String expected =
-                "var cls = Java.use(\"com.example.Foo\");\n"
-              + "cls.bar.overload(\"int\", \"java.lang.String\").implementation = function(a, b){\n"
-              + "    console.log(\"Param 1: \" + a);\n"
-              + "    console.log(\"Param 2: \" + b);\n"
-              + "    var retval = this.bar(a, b);\n"
+                "var foo = Java.use(\"com.example.Foo\");\n"
+              + "foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
+              + "    console.log(\"Param 1: \" + i);\n"
+              + "    console.log(\"Param 2: \" + str);\n"
+              + "    var retval = this.bar(i, str);\n"
               + "    console.log(\"Return Value: \" + retval);\n"
               + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    return retval;\n"
@@ -68,6 +69,7 @@ public class JavaHookGeneratorTest {
 
     /**
      * Constructor (<init>) should produce .$init access.
+     * Class "Foo" (3 chars) → var foo.
      */
     @Test
     public void generateConstructorHook() {
@@ -79,8 +81,8 @@ public class JavaHookGeneratorTest {
         GeneratedScript result = generator.generate(request);
 
         String script = result.getScriptText();
-        assertTrue(script.contains("cls.$init.overload"));
-        assertTrue(script.contains("this.$init(a)"));
+        assertTrue(script.contains("foo.$init.overload"));
+        assertTrue(script.contains("this.$init(str)"));
     }
 
     /**
@@ -133,11 +135,11 @@ public class JavaHookGeneratorTest {
 
         String expected =
                 "Java.perform(function(){\n"
-              + "    var cls = Java.use(\"com.example.Foo\");\n"
-              + "    cls.bar.overload(\"int\", \"java.lang.String\").implementation = function(a, b){\n"
-              + "        console.log(\"Param 1: \" + a);\n"
-              + "        console.log(\"Param 2: \" + b);\n"
-              + "        var retval = this.bar(a, b);\n"
+              + "    var foo = Java.use(\"com.example.Foo\");\n"
+              + "    foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
+              + "        console.log(\"Param 1: \" + i);\n"
+              + "        console.log(\"Param 2: \" + str);\n"
+              + "        var retval = this.bar(i, str);\n"
               + "        console.log(\"Return Value: \" + retval);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "        return retval;\n"
@@ -159,8 +161,8 @@ public class JavaHookGeneratorTest {
         GeneratedScript snippet = generator.generate(request);
 
         String expected =
-                "var cls = Java.use(\"com.example.Foo\");\n"
-              + "cls.getName.overload().implementation = function(){\n"
+                "var foo = Java.use(\"com.example.Foo\");\n"
+              + "foo.getName.overload().implementation = function(){\n"
               + "    var retval = this.getName();\n"
               + "    console.log(\"Return Value: \" + retval);\n"
               + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
@@ -171,6 +173,66 @@ public class JavaHookGeneratorTest {
     }
 
     /**
+     * Obfuscated / short class name falls back to "cls".
+     */
+    @Test
+    public void obfuscatedClassNameFallsToCls() {
+        SmaliMethod method = new SmaliMethod(
+                "com.example.a", "b",
+                Collections.emptyList(), "void");
+        HookRequest request = HookRequest.java(method);
+
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+        assertTrue("Short class 'a' should fallback to cls", script.contains("var cls = Java.use(\"com.example.a\")"));
+    }
+
+    /**
+     * Duplicate param types get numbered: i1, i2.
+     */
+    @Test
+    public void duplicateParamTypesGetNumbered() {
+        SmaliMethod method = new SmaliMethod(
+                "com.example.Foo", "add",
+                Arrays.asList("int", "int"), "int");
+        HookRequest request = HookRequest.java(method);
+
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+        assertTrue(script.contains("function(i1, i2)"));
+    }
+
+    /**
+     * Unknown param type falls back to a, b, c.
+     */
+    @Test
+    public void unknownParamTypeFallsBackToAbc() {
+        SmaliMethod method = new SmaliMethod(
+                "com.example.Foo", "run",
+                Arrays.asList("com.example.a"), "void");
+        HookRequest request = HookRequest.java(method);
+
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+        assertTrue("Short/obfuscated type falls back to sequential", script.contains("function(a)"));
+    }
+
+    /**
+     * Mixed known and unknown types: known get type-aware names, unknown get fallback.
+     */
+    @Test
+    public void mixedKnownAndUnknownTypes() {
+        SmaliMethod method = new SmaliMethod(
+                "com.example.Handler", "process",
+                Arrays.asList("int", "com.example.x", "java.lang.String"), "void");
+        HookRequest request = HookRequest.java(method);
+
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+        assertTrue(script.contains("function(i, a, str)"));
+    }
+
+    /**
      * Wrong request type should throw.
      */
     @Test(expected = IllegalArgumentException.class)
@@ -178,5 +240,28 @@ public class JavaHookGeneratorTest {
         HookRequest request = HookRequest.nativeHook(
                 com.amrts.fridahelper.core.model.NativeSymbol.export("lib.so", "func", 0));
         generator.generate(request);
+    }
+
+    /**
+     * Class var derivation: various cases.
+     */
+    @Test
+    public void deriveClassVariable_normal() {
+        assertEquals("networkManager", JavaHookGenerator.deriveClassVariable("com.example.NetworkManager"));
+        assertEquals("foo", JavaHookGenerator.deriveClassVariable("com.example.Foo"));
+        assertEquals("app", JavaHookGenerator.deriveClassVariable("com.example.App"));
+    }
+
+    @Test
+    public void deriveClassVariable_obfuscatedOrShort() {
+        assertEquals("cls", JavaHookGenerator.deriveClassVariable("com.example.a"));
+        assertEquals("cls", JavaHookGenerator.deriveClassVariable("com.example.b0"));
+        assertEquals("cls", JavaHookGenerator.deriveClassVariable("a"));
+    }
+
+    @Test
+    public void deriveClassVariable_edgeCases() {
+        assertEquals("cls", JavaHookGenerator.deriveClassVariable(null));
+        assertEquals("cls", JavaHookGenerator.deriveClassVariable(""));
     }
 }

@@ -74,7 +74,7 @@ public class ScriptComposerTest {
 
         assertEquals(HookRequest.Type.JAVA, result.getHookType());
         assertTrue(result.getScriptText().contains("Java.use(\"com.example.Foo\")"));
-        assertTrue(result.getScriptText().contains("cls.bar.overload()"));
+        assertTrue(result.getScriptText().contains("foo.bar.overload()"));
         assertFalse(result.getScriptText().contains("Java.perform"));
         assertFalse(result.getScriptText().contains("setTimeout"));
     }
@@ -132,9 +132,9 @@ public class ScriptComposerTest {
 
         // Both hooks present
         assertTrue(script.contains("Java.use(\"com.Foo\")"));
-        assertTrue(script.contains("cls.bar.overload()"));
+        assertTrue(script.contains("foo.bar.overload()"));
         assertTrue(script.contains("Java.use(\"com.Baz\")"));
-        assertTrue(script.contains("cls.qux.overload()"));
+        assertTrue(script.contains("baz.qux.overload()"));
 
         // Only one Java.perform wrapper (not two)
         assertEquals(1, countOccurrences(script, "Java.perform(function(){"));
@@ -394,17 +394,17 @@ public class ScriptComposerTest {
 
         String expected =
                 "Java.perform(function(){\n"
-              + "    var cls = Java.use(\"com.Foo\");\n"
-              + "    cls.bar.overload(\"int\").implementation = function(a){\n"
-              + "        console.log(\"Param 1: \" + a);\n"
-              + "        var retval = this.bar(a);\n"
+              + "    var foo = Java.use(\"com.Foo\");\n"
+              + "    foo.bar.overload(\"int\").implementation = function(i){\n"
+              + "        console.log(\"Param 1: \" + i);\n"
+              + "        var retval = this.bar(i);\n"
               + "        console.log(\"Return Value: \" + retval);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "        return retval;\n"
               + "    }\n"
               + "\n"
-              + "    var cls = Java.use(\"com.Baz\");\n"
-              + "    cls.qux.overload().implementation = function(){\n"
+              + "    var baz = Java.use(\"com.Baz\");\n"
+              + "    baz.qux.overload().implementation = function(){\n"
               + "        var retval = this.qux();\n"
               + "        console.log(\"Return Value: \" + retval);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"

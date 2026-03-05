@@ -18,9 +18,7 @@ public class ObfuscationDetectorTest {
 
     @Test
     public void highCodePointIsObfuscated() {
-        // Code point 320 = U+0140 (latin small letter l with middle dot)
         assertTrue(ObfuscationDetector.isObfuscated("\u0140"));
-        // Common obfuscator output
         assertTrue(ObfuscationDetector.isObfuscated("\u0430\u0431")); // Cyrillic а, б
     }
 
@@ -33,5 +31,37 @@ public class ObfuscationDetectorTest {
     @Test
     public void initMethodNotObfuscated() {
         assertFalse(ObfuscationDetector.isObfuscated("<init>"));
+    }
+
+    // ========== isUnsuitableForVariable ==========
+
+    @Test
+    public void shortNamesAreUnsuitable() {
+        assertTrue(ObfuscationDetector.isUnsuitableForVariable("a"));
+        assertTrue(ObfuscationDetector.isUnsuitableForVariable("b0"));
+    }
+
+    @Test
+    public void threeCharNamesAreSuitable() {
+        assertFalse(ObfuscationDetector.isUnsuitableForVariable("App"));
+        assertFalse(ObfuscationDetector.isUnsuitableForVariable("Foo"));
+        assertFalse(ObfuscationDetector.isUnsuitableForVariable("Log"));
+    }
+
+    @Test
+    public void obfuscatedNameIsUnsuitable() {
+        assertTrue(ObfuscationDetector.isUnsuitableForVariable("\u0430\u0431\u0432"));
+    }
+
+    @Test
+    public void nullAndEmptyAreUnsuitable() {
+        assertTrue(ObfuscationDetector.isUnsuitableForVariable(null));
+        assertTrue(ObfuscationDetector.isUnsuitableForVariable(""));
+    }
+
+    @Test
+    public void normalLongNamesAreSuitable() {
+        assertFalse(ObfuscationDetector.isUnsuitableForVariable("NetworkManager"));
+        assertFalse(ObfuscationDetector.isUnsuitableForVariable("Utils"));
     }
 }

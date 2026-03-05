@@ -11,6 +11,7 @@ package com.amrts.fridahelper.core.util;
 public final class ObfuscationDetector {
 
     private static final int OBFUSCATION_THRESHOLD = 320;
+    private static final int MIN_MEANINGFUL_LENGTH = 3;
 
     private ObfuscationDetector() { }
 
@@ -28,5 +29,16 @@ public final class ObfuscationDetector {
             i += Character.charCount(codePoint);
         }
         return false;
+    }
+
+    /**
+     * Returns true if the class name is unsuitable for use as a variable name.
+     * A name is unsuitable if it is obfuscated (non-ASCII) or too short (< 3 chars),
+     * which typically indicates ProGuard/R8 minification (e.g. "a", "b0").
+     */
+    public static boolean isUnsuitableForVariable(String simpleName) {
+        if (simpleName == null || simpleName.isEmpty()) return true;
+        if (simpleName.length() < MIN_MEANINGFUL_LENGTH) return true;
+        return isObfuscated(simpleName);
     }
 }
