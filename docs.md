@@ -1,6 +1,6 @@
 # FridaHelper — Architecture & Code Reference
 
-**Version:** 3.5.0 (code 7)
+**Version:** 3.6.0 (code 8)
 **Package:** `com.amrts.fridahelper`
 **Min SDK:** 24 · **Target/Compile:** 34
 **Language:** Java 8
@@ -36,7 +36,7 @@ core/
     ParamNameGenerator — Type-aware param names (int→i, String→str; numbered on duplicates; abc fallback)
     ObfuscationDetector — Heuristic: non-ASCII (≥ U+0140) or short (< 3 chars) → obfuscated/unsuitable
   ScriptOutputHelper   — Shared output display/copy/export logic (eliminates Fragment duplication)
-  FridaHelperVersion   — Central VERSION constant ("3.5.0")
+  FridaHelperVersion   — Central VERSION constant ("3.6.0")
 
 app/
   MainActivity         — AppCompat host: Toolbar + TabLayout + ViewPager2. Theme toggle only.
@@ -84,6 +84,7 @@ Multi-hook:
 - **Per-call SimpleDateFormat** in ScriptExporter — avoids thread-safety issues with static formatter.
 - **ScriptOutputHelper** — shared utility class eliminates ~80 LOC duplication between JavaHookFragment and NativeHookFragment for output display, copy, and export.
 - **CoordinatorLayout** — fragment root wraps ScrollView for proper Snackbar anchoring.
+- **Editable script output (Option B)** — read-only by default; explicit Edit/Done toggle switches to EditText. Reset reverts to original generated script. Copy/Export always use currently visible text.
 - **Smart variable naming** — class variable derived from simple class name (camelCased), falls back to `cls` if obfuscated or < 3 chars. Param names are type-aware (`i`, `str`, `b` …) with numbering only on duplicate types; unknown types fall back to `a, b, c`.
 
 ## Layouts

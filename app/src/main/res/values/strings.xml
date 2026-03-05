@@ -9,6 +9,9 @@
     <string name="btn_generate">Generate Script</string>
     <string name="label_output">Generated Script</string>
     <string name="btn_copy">Copy to Clipboard</string>
+    <string name="btn_edit">Edit</string>
+    <string name="btn_done">Done</string>
+    <string name="btn_reset">Reset</string>
     <string name="switch_full_script">Wrap in Java.perform</string>
 
     <!-- Native Hook Fragment -->
