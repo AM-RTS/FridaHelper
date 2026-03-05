@@ -8,4 +8,5 @@
     <color name="on_surface">#E0E0E0</color>
     <color name="code_bg">#1A1A2E</color>
     <color name="code_text">#A5D6A7</color>
+    <color name="tab_text_unselected">#80FFFFFF</color>
 </resources>

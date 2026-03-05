@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/coordinator"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<ScrollView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="16dp">
@@ -9,6 +14,15 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_helper"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/helper_native_hook"
+            android:textColor="?android:textColorSecondary"
+            android:textSize="13sp"
+            android:layout_marginBottom="12dp" />
 
         <!-- Target mode -->
         <TextView
@@ -30,6 +44,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:minHeight="48dp"
                 android:text="@string/radio_export"
                 android:checked="true" />
 
@@ -38,6 +53,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:minHeight="48dp"
                 android:text="@string/radio_address" />
 
         </RadioGroup>
@@ -57,6 +73,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
+                android:imeOptions="actionNext"
                 android:maxLength="256"
                 android:fontFamily="monospace"
                 android:textSize="14sp" />
@@ -78,6 +95,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
+                android:imeOptions="actionNext"
                 android:maxLength="512"
                 android:fontFamily="monospace"
                 android:textSize="14sp" />
@@ -100,6 +118,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
+                android:imeOptions="actionNext"
                 android:maxLength="20"
                 android:fontFamily="monospace"
                 android:textSize="14sp" />
@@ -121,6 +140,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
+                android:imeOptions="actionNext"
                 android:maxLength="3"
                 android:text="0"
                 android:textSize="14sp" />
@@ -141,6 +161,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="number"
+                android:imeOptions="actionDone"
                 android:maxLength="6"
                 android:text="0"
                 android:textSize="14sp" />
@@ -232,52 +253,59 @@
 
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/label_output"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/label_output"
-            android:textStyle="bold"
-            android:textSize="14sp"
-            android:visibility="gone" />
-
-        <HorizontalScrollView
+        <LinearLayout
+            android:id="@+id/layout_output_section"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp">
+            android:orientation="vertical"
+            android:visibility="gone">
 
             <TextView
-                android:id="@+id/text_output"
+                android:id="@+id/label_output"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:background="@color/code_bg"
-                android:textColor="@color/code_text"
-                android:fontFamily="monospace"
-                android:textSize="12sp"
-                android:textIsSelectable="true"
-                android:visibility="gone" />
+                android:layout_marginTop="20dp"
+                android:text="@string/label_output"
+                android:textStyle="bold"
+                android:textSize="14sp" />
 
-        </HorizontalScrollView>
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_copy"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/btn_copy"
-            android:visibility="gone"
-            style="@style/Widget.Material3.Button.TonalButton" />
+                <TextView
+                    android:id="@+id/text_output"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    android:background="@color/code_bg"
+                    android:textColor="@color/code_text"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp"
+                    android:textIsSelectable="true"
+                    android:accessibilityLiveRegion="polite" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_export"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/btn_export"
-            android:visibility="gone"
-            style="@style/Widget.Material3.Button.OutlinedButton" />
+            </HorizontalScrollView>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_copy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/btn_copy"
+                style="@style/Widget.Material3.Button.TonalButton" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_export"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/btn_export"
+                style="@style/Widget.Material3.Button.OutlinedButton" />
+
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

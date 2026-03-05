@@ -3,13 +3,13 @@ package com.amrts.fridahelper.app;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager2.widget.ViewPager2;
 
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
 
@@ -24,6 +24,8 @@ public class MainActivity extends AppCompatActivity {
             R.string.tab_java_hook,
             R.string.tab_native_hook
     };
+
+    private MenuItem themeMenuItem;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,7 +49,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
-        updateThemeIcon(menu.findItem(R.id.action_toggle_theme));
+        themeMenuItem = menu.findItem(R.id.action_toggle_theme);
+        updateThemeIcon(themeMenuItem);
         return true;
     }
 
@@ -55,16 +58,14 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_toggle_theme) {
             int newMode = ThemeManager.cycleMode(this);
-            String label = ThemeManager.getModeLabel(newMode);
-            Toast.makeText(this, getString(R.string.theme_switched, label), Toast.LENGTH_SHORT).show();
+            String label = ThemeManager.getModeLabel(this, newMode);
+            Snackbar.make(findViewById(R.id.view_pager),
+                    getString(R.string.theme_switched, label), Snackbar.LENGTH_SHORT).show();
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    /**
-     * Updates the toolbar icon to reflect the current theme mode.
-     */
     private void updateThemeIcon(MenuItem item) {
         int mode = ThemeManager.getSavedMode(this);
         int iconRes;
@@ -81,5 +82,7 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
         item.setIcon(iconRes);
+        item.setTitle(getString(R.string.action_toggle_theme) + " (" +
+                ThemeManager.getModeLabel(this, mode) + ")");
     }
 }

@@ -7,4 +7,5 @@
     <color name="on_surface">#212121</color>
     <color name="code_bg">#263238</color>
     <color name="code_text">#A5D6A7</color>
+    <color name="tab_text_unselected">#80FFFFFF</color>
 </resources>

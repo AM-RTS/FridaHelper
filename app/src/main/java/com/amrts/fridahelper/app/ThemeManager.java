@@ -93,14 +93,14 @@ public final class ThemeManager {
     }
 
     /**
-     * Returns a human-readable label for the current mode (for toolbar icon content description).
+     * Returns a localized label for the given mode.
      */
-    public static String getModeLabel(int mode) {
+    public static String getModeLabel(Context context, int mode) {
         switch (mode) {
-            case MODE_LIGHT:  return "Light";
-            case MODE_DARK:   return "Dark";
+            case MODE_LIGHT:  return context.getString(R.string.theme_light);
+            case MODE_DARK:   return context.getString(R.string.theme_dark);
             case MODE_SYSTEM:
-            default:          return "System";
+            default:          return context.getString(R.string.theme_system);
         }
     }
 }

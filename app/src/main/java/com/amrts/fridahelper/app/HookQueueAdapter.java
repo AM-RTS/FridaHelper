@@ -61,15 +61,7 @@ public final class HookQueueAdapter extends RecyclerView.Adapter<HookQueueAdapte
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_hook_queue, parent, false);
-        return new ViewHolder(view);
-    }
-
-    @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        HookRequest request = items.get(position);
-        holder.textIndex.setText(String.valueOf(position + 1));
-        holder.textType.setText(request.getType() == HookRequest.Type.JAVA ? "JAVA" : "NATIVE");
-        holder.textSummary.setText(formatSummary(request));
+        ViewHolder holder = new ViewHolder(view);
         holder.btnDelete.setOnClickListener(v -> {
             if (deleteListener != null) {
                 int pos = holder.getBindingAdapterPosition();
@@ -78,6 +70,15 @@ public final class HookQueueAdapter extends RecyclerView.Adapter<HookQueueAdapte
                 }
             }
         });
+        return holder;
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        HookRequest request = items.get(position);
+        holder.textIndex.setText(String.valueOf(position + 1));
+        holder.textType.setText(request.getType() == HookRequest.Type.JAVA ? "JAVA" : "NATIVE");
+        holder.textSummary.setText(formatSummary(request));
     }
 
     @Override

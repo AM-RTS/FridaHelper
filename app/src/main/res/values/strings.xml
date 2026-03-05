@@ -49,7 +49,14 @@
     <string name="dialog_compose_positive">Compose</string>
     <string name="dialog_compose_negative">Cancel</string>
 
+    <!-- Helper text -->
+    <string name="helper_java_hook">Enter a smali signature to generate a Frida Java hook script.</string>
+    <string name="helper_native_hook">Select target mode and fill in the fields to generate a native hook.</string>
+
     <!-- Theme -->
     <string name="action_toggle_theme">Toggle theme</string>
     <string name="theme_switched">Theme: %1$s</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System</string>
 </resources>
