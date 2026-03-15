@@ -16,8 +16,18 @@ import com.amrts.fridahelper.core.model.NativeSymbol;
  */
 public final class NativeHookGenerator implements ScriptGenerator {
 
+    /** nativeLog() function definition for native backtrace logging. */
+    public static final String NATIVE_LOG_FUNCTION =
+            "function nativeLog(ctx){\n"
+          + "    console.log(Thread.backtrace(ctx, Backtracer.ACCURATE).map(DebugSymbol.fromAddress).join('\\n'));\n"
+          + "}";
+
     @Override
     public GeneratedScript generate(HookRequest request) {
+        return generate(request, false);
+    }
+
+    public GeneratedScript generate(HookRequest request, boolean enableStackTrace) {
         if (request.getType() != HookRequest.Type.NATIVE) {
             throw new IllegalArgumentException(
                     "NativeHookGenerator requires a NATIVE HookRequest, got: " + request.getType());
@@ -27,9 +37,40 @@ public final class NativeHookGenerator implements ScriptGenerator {
         String script;
 
         if (symbol.isWaitForLoad()) {
-            script = buildWaitForLoadScript(symbol);
+            script = buildWaitForLoadScript(symbol, enableStackTrace);
         } else {
-            script = buildInterceptorAttach(symbol);
+            script = buildInterceptorAttach(symbol, enableStackTrace);
+        }
+
+        if (symbol.getSetTimeoutMs() > 0) {
+            script = wrapInSetTimeout(script, symbol.getSetTimeoutMs());
+        }
+
+        if (enableStackTrace) {
+            script = NATIVE_LOG_FUNCTION + "\n\n" + script;
+        }
+
+        return new GeneratedScript(script, HookRequest.Type.NATIVE);
+    }
+
+    /**
+     * Generates the full script (including waitForLoad/setTimeout wrappers) but
+     * WITHOUT the helper function prefix. Used by ScriptComposer which emits
+     * helper functions once at the top of the composed output.
+     */
+    GeneratedScript generateWithoutHelpers(HookRequest request, boolean enableStackTrace) {
+        if (request.getType() != HookRequest.Type.NATIVE) {
+            throw new IllegalArgumentException(
+                    "NativeHookGenerator requires a NATIVE HookRequest, got: " + request.getType());
+        }
+
+        NativeSymbol symbol = request.getNativeSymbol();
+        String script;
+
+        if (symbol.isWaitForLoad()) {
+            script = buildWaitForLoadScript(symbol, enableStackTrace);
+        } else {
+            script = buildInterceptorAttach(symbol, enableStackTrace);
         }
 
         if (symbol.getSetTimeoutMs() > 0) {
@@ -41,21 +82,25 @@ public final class NativeHookGenerator implements ScriptGenerator {
 
     @Override
     public GeneratedScript generateBody(HookRequest request) {
+        return generateBody(request, false);
+    }
+
+    public GeneratedScript generateBody(HookRequest request, boolean enableStackTrace) {
         if (request.getType() != HookRequest.Type.NATIVE) {
             throw new IllegalArgumentException(
                     "NativeHookGenerator requires a NATIVE HookRequest, got: " + request.getType());
         }
 
         NativeSymbol symbol = request.getNativeSymbol();
-        String hookBody = buildInterceptorAttach(symbol);
+        String hookBody = buildInterceptorAttach(symbol, enableStackTrace);
         return new GeneratedScript(hookBody, HookRequest.Type.NATIVE);
     }
 
-    private String buildInterceptorAttach(NativeSymbol symbol) {
-        return buildInterceptorBlock(buildTargetExpression(symbol), buildLabel(symbol), symbol.getArgCount());
+    private String buildInterceptorAttach(NativeSymbol symbol, boolean enableStackTrace) {
+        return buildInterceptorBlock(buildTargetExpression(symbol), buildLabel(symbol), symbol.getArgCount(), enableStackTrace);
     }
 
-    private String buildInterceptorBlock(String targetExpr, String label, int argCount) {
+    private String buildInterceptorBlock(String targetExpr, String label, int argCount, boolean enableStackTrace) {
         StringBuilder sb = new StringBuilder();
         sb.append("Interceptor.attach(").append(targetExpr).append(", {\n");
         sb.append("    onEnter: function(args) {\n");
@@ -63,6 +108,10 @@ public final class NativeHookGenerator implements ScriptGenerator {
 
         for (int i = 0; i < argCount; i++) {
             sb.append("        console.log(\"Arg ").append(i).append(": \" + args[").append(i).append("]);\n");
+        }
+
+        if (enableStackTrace) {
+            sb.append("        nativeLog(this.context);\n");
         }
 
         sb.append("    },\n");
@@ -96,19 +145,52 @@ public final class NativeHookGenerator implements ScriptGenerator {
     }
 
     /**
-     * Builds the full waitForLoad script. Uses nativeMethod variable resolved
-     * from the dynamic libName parameter passed at runtime by the dlopen interceptor.
+     * Builds the inner body for a waitForLoad hook: resolves via the libName function
+     * parameter and attaches the interceptor. Used by ScriptComposer for grouping
+     * multiple waitForLoad hooks on the same library.
+     *
+     * @param symbol the native symbol
+     * @param varName JS variable name for the resolved target (e.g. "nativeMethod" or "nativeMethod0")
+     * @param enableStackTrace whether to include nativeLog() calls
+     * @return the "var ... = ...; Interceptor.attach(...)" block
      */
-    private String buildWaitForLoadScript(NativeSymbol symbol) {
-        String exportName = symbol.getExportName();
+    String buildWaitForLoadInner(NativeSymbol symbol, String varName, boolean enableStackTrace) {
+        String resolve;
+        String label;
+        if (symbol.getTargetMode() == NativeSymbol.TargetMode.ADDRESS) {
+            resolve = "var " + varName + " = Module.findBaseAddress(libName).add(ptr(\"" + symbol.getAddress() + "\"));";
+            label = symbol.getAddress();
+        } else {
+            resolve = "var " + varName + " = Module.findExportByName(libName, \"" + symbol.getExportName() + "\");";
+            label = symbol.getExportName();
+        }
+        String interceptor = buildInterceptorBlock(varName, label, symbol.getArgCount(), enableStackTrace);
+        return resolve + "\n" + interceptor;
+    }
+
+    /**
+     * Builds the full waitForLoad script. Resolves the target from the dynamic
+     * libName parameter passed at runtime by the dlopen interceptor.
+     * Supports both EXPORT mode (findExportByName) and ADDRESS mode (findBaseAddress + offset).
+     */
+    private String buildWaitForLoadScript(NativeSymbol symbol, boolean enableStackTrace) {
+        String label;
+        String resolveLine;
+        if (symbol.getTargetMode() == NativeSymbol.TargetMode.ADDRESS) {
+            label = symbol.getAddress();
+            resolveLine = "    var nativeMethod = Module.findBaseAddress(libName).add(ptr(\"" + symbol.getAddress() + "\"));\n";
+        } else {
+            label = symbol.getExportName();
+            resolveLine = "    var nativeMethod = Module.findExportByName(libName, \"" + symbol.getExportName() + "\");\n";
+        }
         int argCount = symbol.getArgCount();
 
-        String innerBody = buildInterceptorBlock("nativeMethod", exportName, argCount);
+        String innerBody = buildInterceptorBlock("nativeMethod", label, argCount, enableStackTrace);
         String indentedInner = indentBlock(innerBody, "    ");
 
         StringBuilder sb = new StringBuilder();
         sb.append("function onLibLoaded(libName) {\n");
-        sb.append("    var nativeMethod = Module.findExportByName(libName, \"").append(exportName).append("\");\n");
+        sb.append(resolveLine);
         sb.append(indentedInner).append("\n");
         sb.append("}\n\n");
         sb.append("function waitForLibLoading(libraryName) {\n");
@@ -121,7 +203,7 @@ public final class NativeHookGenerator implements ScriptGenerator {
         sb.append("                isLibLoaded = true;\n");
         sb.append("            }\n");
         sb.append("        },\n");
-        sb.append("        onLeave: function(args) {\n");
+        sb.append("        onLeave: function(retval) {\n");
         sb.append("            if (isLibLoaded) {\n");
         sb.append("                onLibLoaded(libraryName);\n");
         sb.append("                isLibLoaded = false;\n");
@@ -142,14 +224,6 @@ public final class NativeHookGenerator implements ScriptGenerator {
     }
 
     private String indentBlock(String block, String indent) {
-        String[] lines = block.split("\n", -1);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i > 0) sb.append("\n");
-            if (!lines[i].isEmpty()) {
-                sb.append(indent).append(lines[i]);
-            }
-        }
-        return sb.toString();
+        return com.amrts.fridahelper.core.util.ScriptIndent.indentBlock(block, indent);
     }
 }

@@ -192,10 +192,31 @@ public class NativeHookGeneratorTest {
     }
 
     /**
-     * waitForLoad with ADDRESS mode should fail at build time.
+     * waitForLoad with ADDRESS mode: resolves via base + offset.
+     */
+    @Test
+    public void waitForLoadWithAddressMode() {
+        NativeSymbol symbol = new NativeSymbol.Builder()
+                .libName("libnative.so")
+                .address("0x1234")
+                .waitForLoad(true)
+                .argCount(1)
+                .build();
+        HookRequest request = HookRequest.nativeHook(symbol);
+        GeneratedScript result = generator.generate(request);
+        String script = result.getScriptText();
+
+        assertTrue(script.contains("function onLibLoaded(libName)"));
+        assertTrue(script.contains("Module.findBaseAddress(libName).add(ptr(\"0x1234\"))"));
+        assertTrue(script.contains("waitForLibLoading(\"libnative.so\")"));
+        assertTrue(script.contains("[*] Called 0x1234"));
+    }
+
+    /**
+     * waitForLoad with ADDRESS mode but no library name should fail.
      */
     @Test(expected = IllegalArgumentException.class)
-    public void waitForLoadWithAddressModeThrows() {
+    public void waitForLoadWithAddressNoLibThrows() {
         new NativeSymbol.Builder()
                 .address("0x1234")
                 .waitForLoad(true)

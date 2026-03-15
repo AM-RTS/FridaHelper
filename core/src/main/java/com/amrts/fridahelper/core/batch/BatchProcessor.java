@@ -15,6 +15,9 @@ import java.util.List;
 /**
  * Orchestrates batch hook generation from a directory of .smali files.
  *
+ * <p><b>CLI-only:</b> Uses {@code java.nio.file.Path} APIs which require API 26+ on Android.
+ * The Android app module reimplements file reading with {@code java.io.File} and SAF URIs.
+ *
  * <p>Pipeline: scan directory → read .smali files → filter methods →
  * parse signatures → generate hooks → compose into single script.
  *

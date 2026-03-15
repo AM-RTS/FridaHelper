@@ -5,9 +5,11 @@ import com.amrts.fridahelper.core.model.HookRequest;
 import com.amrts.fridahelper.core.model.NativeSymbol;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Composes multiple hook requests into a single Frida script.
@@ -145,65 +147,78 @@ public final class ScriptComposer {
             throw new IllegalStateException("No hook requests to compose");
         }
 
-        List<String> topLevelScripts = new ArrayList<>();
+        boolean stackTrace = options.isEnableStackTrace();
+
         List<String> wrappedBodies = new ArrayList<>();
         boolean hasJava = false;
+        boolean hasNative = false;
 
-        // Group Java hooks by class name (preserving first-seen order).
-        // Native hooks go directly into wrappedBodies.
         LinkedHashMap<String, List<HookRequest>> javaByClass = new LinkedHashMap<>();
-        List<Object> bodyOrder = new ArrayList<>(); // String (native body) or String (class key)
+        LinkedHashMap<String, List<HookRequest>> waitForLoadByLib = new LinkedHashMap<>();
+
+        // First pass: classify hooks and record insertion order
+        // bodyOrder entries: non-null className = Java class group, null = index into nativeBodies
+        List<String> bodyOrderKeys = new ArrayList<>();
+        List<String> nativeBodies = new ArrayList<>();
 
         for (HookRequest request : requests) {
             if (isTopLevelHook(request)) {
-                GeneratedScript full = nativeGenerator.generate(request);
-                topLevelScripts.add(full.getScriptText());
+                String lib = request.getNativeSymbol().getLibName();
+                if (!waitForLoadByLib.containsKey(lib)) {
+                    waitForLoadByLib.put(lib, new ArrayList<HookRequest>());
+                }
+                waitForLoadByLib.get(lib).add(request);
+                hasNative = true;
             } else if (request.getType() == HookRequest.Type.JAVA) {
                 hasJava = true;
                 String className = request.getSmaliMethod().getClassName();
                 if (!javaByClass.containsKey(className)) {
                     javaByClass.put(className, new ArrayList<HookRequest>());
-                    bodyOrder.add(className);
+                    bodyOrderKeys.add(className);
                 }
                 javaByClass.get(className).add(request);
             } else {
-                GeneratedScript body = nativeGenerator.generateBody(request);
-                String bodyText = body.getScriptText();
-                wrappedBodies.add(bodyText);
-                bodyOrder.add(bodyText);
+                GeneratedScript body = nativeGenerator.generateBody(request, stackTrace);
+                nativeBodies.add(body.getScriptText());
+                bodyOrderKeys.add(null);
+                hasNative = true;
             }
         }
 
-        // Build merged bodies in insertion order (first-seen for each class group)
-        wrappedBodies.clear();
-        for (Object item : bodyOrder) {
-            if (item instanceof String && javaByClass.containsKey(item)) {
-                String className = (String) item;
-                List<HookRequest> group = javaByClass.get(className);
-                wrappedBodies.add(buildJavaClassGroup(className, group));
-            } else if (item instanceof String) {
-                wrappedBodies.add((String) item);
+        // Build wrappedBodies in insertion order, tracking variable names to avoid collisions
+        Set<String> usedVarNames = new HashSet<>();
+        int nativeIdx = 0;
+        for (String key : bodyOrderKeys) {
+            if (key != null) {
+                wrappedBodies.add(buildJavaClassGroup(key, javaByClass.get(key), stackTrace, usedVarNames));
+            } else {
+                wrappedBodies.add(nativeBodies.get(nativeIdx++));
             }
         }
 
         StringBuilder composed = new StringBuilder();
 
-        // 1. Top-level hooks first (waitForLoad)
-        for (String topLevel : topLevelScripts) {
-            if (composed.length() > 0) {
-                composed.append("\n\n");
+        // Emit helper function definitions when stack trace is enabled
+        if (stackTrace) {
+            List<String> helpers = new ArrayList<>();
+            if (hasJava)   helpers.add(JavaHookGenerator.LOG_FUNCTION);
+            if (hasNative)  helpers.add(NativeHookGenerator.NATIVE_LOG_FUNCTION);
+            if (!helpers.isEmpty()) {
+                composed.append(joinBodies(helpers));
             }
-            composed.append(topLevel);
         }
 
-        // 2. Wrapped hooks section
+        if (!waitForLoadByLib.isEmpty()) {
+            String topLevelSection = buildWaitForLoadSection(waitForLoadByLib, stackTrace);
+            if (composed.length() > 0) composed.append("\n\n");
+            composed.append(topLevelSection);
+        }
+
         if (!wrappedBodies.isEmpty()) {
             String merged = joinBodies(wrappedBodies);
             String wrapped = applyWrappers(merged, options);
 
-            if (composed.length() > 0) {
-                composed.append("\n\n");
-            }
+            if (composed.length() > 0) composed.append("\n\n");
             composed.append(wrapped);
         }
 
@@ -214,17 +229,118 @@ public final class ScriptComposer {
     /**
      * Builds a single block for multiple Java hooks targeting the same class.
      * Emits Java.use once, then each method hook using the shared variable.
+     * Tracks used variable names to prevent collisions between obfuscated classes.
      */
-    private String buildJavaClassGroup(String className, List<HookRequest> hooks) {
-        String varName = JavaHookGenerator.deriveClassVariable(className);
+    private String buildJavaClassGroup(String className, List<HookRequest> hooks,
+                                       boolean enableStackTrace, Set<String> usedVarNames) {
+        String varName = ensureUnique(JavaHookGenerator.deriveClassVariable(className), usedVarNames);
+        usedVarNames.add(varName);
         StringBuilder sb = new StringBuilder();
         sb.append("var ").append(varName).append(" = Java.use(\"").append(className).append("\");\n");
 
         for (int i = 0; i < hooks.size(); i++) {
             if (i > 0) sb.append("\n\n");
-            sb.append(javaGenerator.generateMethodHook(hooks.get(i), varName));
+            sb.append(javaGenerator.generateMethodHook(hooks.get(i), varName, enableStackTrace));
         }
         return sb.toString();
+    }
+
+    /**
+     * Returns a unique variable name by appending a numeric suffix if needed.
+     */
+    private static String ensureUnique(String name, Set<String> used) {
+        if (!used.contains(name)) return name;
+        int i = 1;
+        while (used.contains(name + i)) i++;
+        return name + i;
+    }
+
+    /**
+     * Builds the entire top-level section for waitForLoad hooks, grouping by library.
+     * For each library, one onLibLoaded callback is generated containing all interceptor
+     * bodies. The waitForLibLoading helper function is defined once and called per library.
+     */
+    private String buildWaitForLoadSection(LinkedHashMap<String, List<HookRequest>> byLib,
+                                           boolean enableStackTrace) {
+        boolean multiLib = byLib.size() > 1;
+        StringBuilder sb = new StringBuilder();
+
+        // Compute max setTimeout across all waitForLoad hooks
+        int maxTimeout = 0;
+        for (List<HookRequest> hooks : byLib.values()) {
+            for (HookRequest req : hooks) {
+                maxTimeout = Math.max(maxTimeout, req.getNativeSymbol().getSetTimeoutMs());
+            }
+        }
+
+        // Build onLibLoaded callbacks per library
+        List<String> callbackNames = new ArrayList<>();
+        List<String> libNames = new ArrayList<>();
+        int libIdx = 0;
+        for (Map.Entry<String, List<HookRequest>> entry : byLib.entrySet()) {
+            String lib = entry.getKey();
+            List<HookRequest> hooks = entry.getValue();
+            String callbackName = multiLib ? "onLibLoaded_" + libIdx : "onLibLoaded";
+            callbackNames.add(callbackName);
+            libNames.add(lib);
+
+            if (sb.length() > 0) sb.append("\n\n");
+            sb.append("function ").append(callbackName).append("(libName) {\n");
+            for (int i = 0; i < hooks.size(); i++) {
+                if (i > 0) sb.append("\n");
+                NativeSymbol sym = hooks.get(i).getNativeSymbol();
+                String varName = hooks.size() == 1 ? "nativeMethod" : "nativeMethod" + i;
+                String inner = nativeGenerator.buildWaitForLoadInner(sym, varName, enableStackTrace);
+                sb.append(indentBlock(inner, INDENT));
+            }
+            sb.append("\n}");
+            libIdx++;
+        }
+
+        // Define waitForLibLoading helper once
+        sb.append("\n\n");
+        if (multiLib) {
+            sb.append("function waitForLibLoading(libraryName, onLoaded) {\n");
+        } else {
+            sb.append("function waitForLibLoading(libraryName) {\n");
+        }
+        sb.append("    var isLibLoaded = false;\n\n");
+        sb.append("    Interceptor.attach(Module.findExportByName(null, \"android_dlopen_ext\"), {\n");
+        sb.append("        onEnter: function(args) {\n");
+        sb.append("            var libraryPath = Memory.readCString(args[0]);\n");
+        sb.append("            if (libraryPath.includes(libraryName)) {\n");
+        sb.append("                console.log(\"[+] Loading library \" + libraryPath + \"...\");\n");
+        sb.append("                isLibLoaded = true;\n");
+        sb.append("            }\n");
+        sb.append("        },\n");
+        sb.append("        onLeave: function(retval) {\n");
+        sb.append("            if (isLibLoaded) {\n");
+        if (multiLib) {
+            sb.append("                onLoaded(libraryName);\n");
+        } else {
+            sb.append("                ").append(callbackNames.get(0)).append("(libraryName);\n");
+        }
+        sb.append("                isLibLoaded = false;\n");
+        sb.append("            }\n");
+        sb.append("        }\n");
+        sb.append("    });\n");
+        sb.append("}\n\n");
+
+        // Emit calls
+        for (int i = 0; i < libNames.size(); i++) {
+            if (i > 0) sb.append("\n");
+            if (multiLib) {
+                sb.append("waitForLibLoading(\"").append(libNames.get(i)).append("\", ").append(callbackNames.get(i)).append(");");
+            } else {
+                sb.append("waitForLibLoading(\"").append(libNames.get(i)).append("\");");
+            }
+        }
+
+        String section = sb.toString();
+        if (maxTimeout > 0) {
+            section = wrapInSetTimeout(section, maxTimeout);
+        }
+        return section;
     }
 
     /**
@@ -278,18 +394,7 @@ public final class ScriptComposer {
         return "setTimeout(function() {\n" + indented + "\n}, " + ms + ");";
     }
 
-    /**
-     * Indents every non-empty line of a multi-line string by the given prefix.
-     */
     private static String indentBlock(String block, String indent) {
-        String[] lines = block.split("\n", -1);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i > 0) sb.append("\n");
-            if (!lines[i].isEmpty()) {
-                sb.append(indent).append(lines[i]);
-            }
-        }
-        return sb.toString();
+        return com.amrts.fridahelper.core.util.ScriptIndent.indentBlock(block, indent);
     }
 }

@@ -28,38 +28,37 @@ public final class FridaHelperCli {
             + "5. Exit\n";
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        CliMenuHandler handler = new CliMenuHandler(scanner);
+        try (Scanner scanner = new Scanner(System.in)) {
+            CliMenuHandler handler = new CliMenuHandler(scanner);
 
-        boolean running = true;
-        while (running) {
-            System.out.println(BANNER);
-            System.out.print("> ");
-            String input = scanner.nextLine().trim();
+            boolean running = true;
+            while (running) {
+                System.out.println(BANNER);
+                System.out.print("> ");
+                String input = scanner.nextLine().trim();
 
-            switch (input) {
-                case "1":
-                    handler.handleJavaHook();
-                    break;
-                case "2":
-                    handler.handleNativeHook();
-                    break;
-                case "3":
-                    handler.handleMultiHookSession();
-                    break;
-                case "4":
-                    handler.showAbout();
-                    break;
-                case "5":
-                    System.out.println("\nExiting...");
-                    running = false;
-                    break;
-                default:
-                    System.out.println("Invalid option. Please enter 1-5.");
-                    break;
+                switch (input) {
+                    case "1":
+                        handler.handleJavaHook();
+                        break;
+                    case "2":
+                        handler.handleNativeHook();
+                        break;
+                    case "3":
+                        handler.handleMultiHookSession();
+                        break;
+                    case "4":
+                        handler.showAbout();
+                        break;
+                    case "5":
+                        System.out.println("\nExiting...");
+                        running = false;
+                        break;
+                    default:
+                        System.out.println("Invalid option. Please enter 1-5.");
+                        break;
+                }
             }
         }
-
-        scanner.close();
     }
 }

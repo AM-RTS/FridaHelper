@@ -13,7 +13,7 @@ package com.amrts.fridahelper.core;
 public final class FridaHelperVersion {
 
     /** Semantic version string (major.minor.patch). */
-    public static final String VERSION = "3.8.0";
+    public static final String VERSION = "4.0.0";
 
     /** Human-readable name shown in UI/CLI banners. */
     public static final String NAME = "FridaHelper";

@@ -271,11 +271,91 @@ public class ScriptComposerTest {
         GeneratedScript result = composer.compose(CompositionOptions.none());
         String script = result.getScriptText();
 
-        // Both waitForLoad hooks present
-        assertTrue(script.contains("waitForLibLoading(\"libfoo.so\")"));
-        assertTrue(script.contains("waitForLibLoading(\"libbar.so\")"));
+        // Both waitForLoad hooks present (multi-lib uses callback arg)
+        assertTrue(script.contains("waitForLibLoading(\"libfoo.so\", onLibLoaded_0)"));
+        assertTrue(script.contains("waitForLibLoading(\"libbar.so\", onLibLoaded_1)"));
+
+        // Both onLibLoaded callbacks defined
+        assertTrue(script.contains("function onLibLoaded_0(libName)"));
+        assertTrue(script.contains("function onLibLoaded_1(libName)"));
+
+        // waitForLibLoading defined only once (with callback param)
+        assertEquals(1, countOccurrences(script, "function waitForLibLoading(libraryName"));
+
+        // Both exports resolved
+        assertTrue(script.contains("\"func_a\""));
+        assertTrue(script.contains("\"func_b\""));
 
         // No wrapper applied (all hooks are top-level)
+        assertFalse(script.contains("Java.perform"));
+    }
+
+    @Test
+    public void sameLibraryWaitForLoadWithStackTrace_noDuplication() {
+        NativeSymbol hook1 = new NativeSymbol.Builder()
+                .libName("libc.so")
+                .exportName("open")
+                .argCount(0)
+                .waitForLoad(true)
+                .build();
+        NativeSymbol hook2 = new NativeSymbol.Builder()
+                .libName("libc.so")
+                .exportName("read")
+                .argCount(0)
+                .waitForLoad(true)
+                .build();
+        composer.addRequest(HookRequest.nativeHook(hook1));
+        composer.addRequest(HookRequest.nativeHook(hook2));
+
+        CompositionOptions options = CompositionOptions.builder()
+                .enableStackTrace(true)
+                .build();
+        GeneratedScript result = composer.compose(options);
+        String script = result.getScriptText();
+
+        // nativeLog defined exactly once
+        assertEquals("nativeLog should appear exactly once as function definition",
+                1, countOccurrences(script, "function nativeLog(ctx)"));
+        // nativeLog called in each hook body
+        assertEquals(2, countOccurrences(script, "nativeLog(this.context)"));
+        // waitForLibLoading defined once
+        assertEquals(1, countOccurrences(script, "function waitForLibLoading(libraryName)"));
+        // onLibLoaded defined once
+        assertEquals(1, countOccurrences(script, "function onLibLoaded(libName)"));
+    }
+
+    @Test
+    public void sameLibraryWaitForLoadHooksGrouped() {
+        NativeSymbol hook1 = new NativeSymbol.Builder()
+                .libName("libc.so")
+                .exportName("open")
+                .argCount(1)
+                .waitForLoad(true)
+                .build();
+        NativeSymbol hook2 = new NativeSymbol.Builder()
+                .libName("libc.so")
+                .exportName("read")
+                .argCount(1)
+                .waitForLoad(true)
+                .build();
+        composer.addRequest(HookRequest.nativeHook(hook1));
+        composer.addRequest(HookRequest.nativeHook(hook2));
+
+        GeneratedScript result = composer.compose(CompositionOptions.none());
+        String script = result.getScriptText();
+
+        // Single onLibLoaded with both hooks inside
+        assertEquals(1, countOccurrences(script, "function onLibLoaded(libName)"));
+        assertTrue(script.contains("\"open\""));
+        assertTrue(script.contains("\"read\""));
+        assertTrue(script.contains("nativeMethod0"));
+        assertTrue(script.contains("nativeMethod1"));
+
+        // waitForLibLoading defined once and called once
+        assertEquals(1, countOccurrences(script, "function waitForLibLoading(libraryName)"));
+        assertEquals(1, countOccurrences(script, "waitForLibLoading(\"libc.so\");"));
+
+        // No duplication
         assertFalse(script.contains("Java.perform"));
     }
 
@@ -293,10 +373,10 @@ public class ScriptComposerTest {
         GeneratedScript result = composer.compose(CompositionOptions.none());
         String script = result.getScriptText();
 
-        // The waitForLoad hook's own setTimeout is preserved
+        // The waitForLoad hook's own setTimeout wraps the entire section
         assertTrue(script.contains("setTimeout(function() {"));
         assertTrue(script.contains("}, 1000);"));
-        assertTrue(script.contains("waitForLibLoading(\"libnative.so\")"));
+        assertTrue(script.contains("waitForLibLoading(\"libnative.so\");"));
     }
 
     // ========== Wrapper deduplication ==========
@@ -426,14 +506,12 @@ public class ScriptComposerTest {
               + "    foo.bar.overload(\"int\").implementation = function(i){\n"
               + "        this.bar(i);\n"
               + "        console.log(`Foo.bar(${i})`);\n"
-              + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    }\n"
               + "\n"
               + "    var baz = Java.use(\"com.Baz\");\n"
               + "    baz.qux.overload().implementation = function(){\n"
               + "        var retval = this.qux();\n"
               + "        console.log(`Baz.qux() => ${retval}`);\n"
-              + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "        return retval;\n"
               + "    }\n"
               + "});";
@@ -498,6 +576,9 @@ public class ScriptComposerTest {
         assertTrue(script.contains("}, 500);"));
         assertFalse("Composition setTimeout should not apply to top-level hooks",
                 script.contains("}, 1000);"));
+
+        // waitForLibLoading is inside the section
+        assertTrue(script.contains("waitForLibLoading(\"libnative.so\");"));
 
         // No Java.perform wrapping on the waitForLoad hook
         assertFalse(script.contains("Java.perform"));

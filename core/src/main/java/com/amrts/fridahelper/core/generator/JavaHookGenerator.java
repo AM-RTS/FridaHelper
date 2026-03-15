@@ -16,7 +16,6 @@ import java.util.List;
  *   networkManager.sendRequest.overload("java.lang.String", "int").implementation = function(str, i){
  *       var retval = this.sendRequest(str, i);
  *       console.log(`NetworkManager.sendRequest(${str}, ${i}) => ${retval}`);
- *       //console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()));
  *       return retval;
  *   }
  */
@@ -24,13 +23,31 @@ public final class JavaHookGenerator implements ScriptGenerator {
 
     private static final String INDENT = "    ";
 
+    /** log() function definition for Java stack trace logging. */
+    public static final String LOG_FUNCTION =
+            "function log(){\n"
+          + "    console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
+          + "}";
+
     @Override
     public GeneratedScript generate(HookRequest request) {
-        return generateBody(request);
+        return generateBody(request, false);
+    }
+
+    public GeneratedScript generate(HookRequest request, boolean enableStackTrace) {
+        GeneratedScript body = generateBody(request, enableStackTrace);
+        if (enableStackTrace) {
+            return new GeneratedScript(LOG_FUNCTION + "\n\n" + body.getScriptText(), body.getHookType());
+        }
+        return body;
     }
 
     @Override
     public GeneratedScript generateBody(HookRequest request) {
+        return generateBody(request, false);
+    }
+
+    public GeneratedScript generateBody(HookRequest request, boolean enableStackTrace) {
         if (request.getType() != HookRequest.Type.JAVA) {
             throw new IllegalArgumentException("JavaHookGenerator requires a JAVA HookRequest, got: " + request.getType());
         }
@@ -58,7 +75,7 @@ public final class JavaHookGenerator implements ScriptGenerator {
             sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
         }
         sb.append(buildTraceLog(className, varName, methodName, paramTypes, isVoid));
-        sb.append(INDENT).append("//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n");
+        appendStackTraceLine(sb, enableStackTrace);
         if (!isVoid) {
             sb.append(INDENT).append("return retval;\n");
         }
@@ -67,15 +84,11 @@ public final class JavaHookGenerator implements ScriptGenerator {
         return new GeneratedScript(sb.toString(), HookRequest.Type.JAVA);
     }
 
-    /**
-     * Generates just the method hook portion without the Java.use declaration.
-     * Used by ScriptComposer when grouping multiple hooks for the same class.
-     *
-     * @param request the hook request
-     * @param varName the variable name to use (from the shared Java.use call)
-     * @return script text containing only the method hook (no var declaration)
-     */
     public String generateMethodHook(HookRequest request, String varName) {
+        return generateMethodHook(request, varName, false);
+    }
+
+    public String generateMethodHook(HookRequest request, String varName, boolean enableStackTrace) {
         if (request.getType() != HookRequest.Type.JAVA) {
             throw new IllegalArgumentException("JavaHookGenerator requires a JAVA HookRequest");
         }
@@ -101,7 +114,7 @@ public final class JavaHookGenerator implements ScriptGenerator {
             sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
         }
         sb.append(buildTraceLog(className, varName, methodName, paramTypes, isVoid));
-        sb.append(INDENT).append("//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n");
+        appendStackTraceLine(sb, enableStackTrace);
         if (!isVoid) {
             sb.append(INDENT).append("return retval;\n");
         }
@@ -110,17 +123,49 @@ public final class JavaHookGenerator implements ScriptGenerator {
         return sb.toString();
     }
 
+    private void appendStackTraceLine(StringBuilder sb, boolean enableStackTrace) {
+        if (enableStackTrace) {
+            sb.append(INDENT).append("log();\n");
+        }
+    }
+
     /**
      * Derives a JavaScript variable name from the fully-qualified class name.
      * Extracts the simple name, lowercases the first character.
-     * Falls back to "cls" if the name is obfuscated or too short.
+     * For obfuscated/short names, sanitizes the full class name into a valid
+     * JS identifier (e.g., "am.h" → "am_h", "A2.A" → "A2_A").
+     * Falls back to "cls" only if sanitization produces an empty string.
      */
     static String deriveClassVariable(String className) {
         if (className == null || className.isEmpty()) return "cls";
         int dot = className.lastIndexOf('.');
         String simple = dot >= 0 ? className.substring(dot + 1) : className;
-        if (ObfuscationDetector.isUnsuitableForVariable(simple)) return "cls";
-        return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+        if (!ObfuscationDetector.isUnsuitableForVariable(simple)) {
+            return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+        }
+        return sanitizeAsVariable(className);
+    }
+
+    /**
+     * Sanitizes a class name into a concise JS identifier by taking the last 2
+     * dot-separated segments (parent + class), joining with underscore, and
+     * stripping non-ASCII chars. Falls back to "cls" if the result is empty.
+     */
+    static String sanitizeAsVariable(String className) {
+        String[] parts = className.split("\\.");
+        int start = Math.max(0, parts.length - 2);
+        StringBuilder sb = new StringBuilder();
+        for (int i = start; i < parts.length; i++) {
+            if (sb.length() > 0) sb.append('_');
+            for (int j = 0; j < parts[i].length(); j++) {
+                char c = parts[i].charAt(j);
+                if (c < 128 && (Character.isLetterOrDigit(c) || c == '_' || c == '$')) {
+                    sb.append(c);
+                }
+            }
+        }
+        if (sb.length() == 0) return "cls";
+        return sb.toString();
     }
 
     private String buildMethodAccess(String methodName) {
@@ -146,17 +191,13 @@ public final class JavaHookGenerator implements ScriptGenerator {
 
     /**
      * Builds a single console.log trace line using JS template literals.
-     * Uses simple class name for readable classes, full name for obfuscated ones (varName == "cls").
+     * Uses simple class name for readable classes, full name for obfuscated ones.
      */
     private String buildTraceLog(String className, String varName, String methodName,
                                  List<String> paramTypes, boolean isVoid) {
-        String displayClass;
-        if ("cls".equals(varName)) {
-            displayClass = className;
-        } else {
-            int dot = className.lastIndexOf('.');
-            displayClass = dot >= 0 ? className.substring(dot + 1) : className;
-        }
+        int dot = className.lastIndexOf('.');
+        String simple = dot >= 0 ? className.substring(dot + 1) : className;
+        String displayClass = ObfuscationDetector.isUnsuitableForVariable(simple) ? className : simple;
 
         String displayMethod = "<init>".equals(methodName) ? "$init" : methodName;
 
@@ -165,7 +206,7 @@ public final class JavaHookGenerator implements ScriptGenerator {
         sb.append(displayClass).append(".").append(displayMethod).append("(");
 
         if (!paramTypes.isEmpty()) {
-            String[] names = ParamNameGenerator.generate(paramTypes).split(", ");
+            String[] names = ParamNameGenerator.generateArray(paramTypes);
             for (int i = 0; i < names.length; i++) {
                 if (i > 0) sb.append(", ");
                 sb.append("${").append(names[i]).append("}");

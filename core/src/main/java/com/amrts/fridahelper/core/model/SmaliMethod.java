@@ -1,6 +1,6 @@
 package com.amrts.fridahelper.core.model;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -28,7 +28,7 @@ public final class SmaliMethod {
         this.methodName = methodName;
         this.paramTypes = paramTypes == null
                 ? Collections.emptyList()
-                : Collections.unmodifiableList(Arrays.asList(paramTypes.toArray(new String[0])));
+                : Collections.unmodifiableList(new ArrayList<>(paramTypes));
         this.returnType = returnType == null ? "" : returnType;
     }
 

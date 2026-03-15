@@ -1,19 +1,21 @@
 # FridaHelper
 
-A modular Java tool for generating [Frida](https://frida.re/) hook scripts from smali method signatures (Java hooks) and native library symbols (native hooks).
+A modular Java/Kotlin tool for generating [Frida](https://frida.re/) hook scripts from smali method signatures (Java hooks) and native library symbols (native hooks).
 
 ## Features
 
 - **Java Hook Generation** — Paste a smali method signature, get a ready-to-use Frida `Java.perform` hook script with a concise trace log.
 - **Native Hook Generation** — Export-based or address-based `Interceptor.attach` scripts with optional library wait and setTimeout.
-- **Smart Variable Naming** — Generated scripts use meaningful names derived from class and type info (e.g. `networkManager` instead of `cls`, `str` instead of `a`). Falls back to simple naming for obfuscated/ProGuard code.
+- **Smart Variable Naming** — Generated scripts use meaningful names derived from class and type info (e.g. `networkManager` instead of `cls`, `str` instead of `a`). Obfuscated classes use the last two package segments (e.g. `example_a`) with collision-avoidance suffixes in composed scripts.
 - **Batch Import** — Import `.smali` files or entire directories. Methods are parsed, filtered (abstract/synthetic/bridge auto-skipped), and queued for composition. Same-class hooks are grouped under a single `Java.use` call.
 - **Concise Trace Logging** — Generated hooks use a single template-literal `console.log` line per method (e.g. `` console.log(`ClassName.method(${params}) => ${retval}`) ``) instead of verbose per-parameter logs.
-- **Multi-Hook Composition** — Queue multiple Java and Native hooks and compose them into a single script with shared wrappers and deduplicated `Java.use` declarations.
-- **JavaScript Syntax Highlighting** — Generated scripts are syntax-highlighted in the Android app (keywords, strings, Frida API, comments, numbers, template literals).
+- **Stack Trace Logging** — Optional per-hook stack trace via `android.util.Log.getStackTraceString` (Java) or `Thread.backtrace` (Native). Helper functions are defined once per script and called conditionally.
+- **Multi-Hook Composition** — Queue multiple Java and Native hooks and compose them into a single script with shared wrappers, deduplicated `Java.use` declarations, and grouped `waitForLoad` hooks by library.
+- **JavaScript Syntax Highlighting** — Generated scripts are syntax-highlighted in the Android app (keywords, strings, Frida API, comments, numbers, template literals). Uses `VisualTransformation` for lag-free editing.
 - **Wrap Text Toggle** — Switch between horizontal-scrolling and word-wrapped display in both read-only and edit modes.
+- **Custom Export Directory** — Configure a custom path for exported scripts via Settings; falls back to `Documents/FridaHelper`.
 - **Modular Core** — The `core` package has zero I/O dependencies and can be embedded in any Java/Android application.
-- **Android App** — Material 3 UI with tabbed Java/Native hook generation, hook queue, batch import, script export, and theme toggle.
+- **Android App** — Jetpack Compose Material 3 UI with tabbed Java/Native hook generation, hook queue, batch import, script export, and theme toggle.
 - **CLI Interface** — Interactive command-line tool for quick script generation.
 
 ## Build
@@ -35,7 +37,7 @@ Or build a JAR and run directly:
 
 ```bash
 gradle jar
-java -jar cli/build/libs/cli-3.8.0.jar
+java -jar cli/build/libs/cli-4.0.0.jar
 ```
 
 ## Usage
@@ -43,7 +45,7 @@ java -jar cli/build/libs/cli-3.8.0.jar
 ### CLI
 
 ```
-FridaHelper 3.8.0
+FridaHelper 4.0.0
 Options:
 1. Java Hook (from smali signature)
 2. Native Hook (lib + symbol / address)
@@ -65,7 +67,6 @@ Java.perform(function(){
     foo.bar.overload("int", "java.lang.String").implementation = function(i, str){
         this.bar(i, str);
         console.log(`Foo.bar(${i}, ${str})`);
-        //console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()));
     }
 });
 ```
@@ -123,7 +124,7 @@ Interceptor.attach(ptr("0xDEAD"), {
 
 #### Wait for library loading
 
-For libraries that aren't loaded yet at injection time (avoids "Expected a pointer" errors):
+For libraries that aren't loaded yet at injection time (avoids "Expected a pointer" errors). Works with both export-based and address-based hooks:
 
 ```javascript
 function onLibLoaded(libName) {
@@ -149,7 +150,7 @@ function waitForLibLoading(libraryName) {
                 isLibLoaded = true;
             }
         },
-        onLeave: function(args) {
+        onLeave: function(retval) {
             if (isLibLoaded) {
                 onLibLoaded(libraryName);
                 isLibLoaded = false;
@@ -223,7 +224,7 @@ If no `keystore.properties` is found, the release build falls back to an unsigne
 
 ```
 com.amrts.fridahelper/
-  core/                    # Zero-I/O reusable module
+  core/                    # Zero-I/O reusable Java module
     FridaHelperVersion     # Central version constant
     model/                 # Immutable data classes
       SmaliMethod          # Parsed smali method signature
@@ -235,52 +236,40 @@ com.amrts.fridahelper/
       JavaHookGenerator    # Java.use / overload / implementation (smart class+param naming)
       NativeHookGenerator  # Interceptor.attach (export / address / waitForLoad / setTimeout)
       ScriptWrapper        # Java.perform / setTimeout wrapping
-      ScriptComposer       # Merges N hooks into single script (groups same-class Java.use)
+      ScriptComposer       # Merges N hooks into single script (groups same-class Java.use, deduplicates waitForLoad by lib)
       CompositionOptions   # Wrapper config for composition
     batch/
       SmaliMethodEntry     # Parsed method entry with access flags
       SmaliFileReader      # .smali file/directory parser
       BatchFilter          # Predicate filtering (abstract/synthetic/bridge skipped)
-      BatchProcessor       # Orchestrates batch pipeline
+      BatchProcessor       # Orchestrates batch pipeline (CLI-only, uses java.nio.file.Path)
     util/
       ParamNameGenerator   # Type-aware param names (int→i, String→str; abc fallback)
       ObfuscationDetector  # Non-ASCII / short-name detection for variable suitability
-  app/                     # Android UI (MVVM, Material 3)
-    MainActivity           # Toolbar + TabLayout + ViewPager2
-    HookViewModel          # Shared ViewModel with single-thread executor
-    JavaHookFragment       # Java hook tab (+ batch import)
-    NativeHookFragment     # Native hook tab
-    HookQueueAdapter       # RecyclerView + DiffUtil for queue
-    BatchImportDialogHelper # Filter dialog for batch imports
-    JsSyntaxHighlighter    # Regex-based JS syntax highlighting
-    ScriptOutputHelper     # Shared output display/edit/copy/export logic
-    ScriptExporter         # Save scripts to Documents
-    ThemeManager           # Light / Dark / System toggle
+      ScriptIndent         # Shared indentation utility for generated scripts
+  app/                     # Android UI (Kotlin, Jetpack Compose, Material 3)
+    MainActivity           # ComponentActivity with enableEdgeToEdge(), Compose theme
+    HookViewModel          # Shared ViewModel with StateFlow/SharedFlow, coroutines
+    ThemeManager           # Light / Dark / System toggle + auto-scroll + export dir (SharedPreferences)
+    ScriptExporter         # Save scripts to Documents or custom directory
+    ui/
+      FridaHelperApp       # Scaffold + TopAppBar + TabRow + HorizontalPager + Settings menu
+      JavaHookScreen       # Java hook tab (input, batch import, queue, compose, output)
+      NativeHookScreen     # Native hook tab (export/address mode, waitForLoad, output)
+      theme/
+        Color.kt           # Green-derived tonal palette
+        Theme.kt           # Light/Dark/Dynamic color schemes
+        Type.kt            # Typography
+      components/
+        ScriptOutput       # Script display/edit/copy/export with syntax highlighting
+        HookQueueList      # Collapsible hook queue with animations
+        BatchImportDialog  # Batch import with SAF folder picker
   cli/                     # Thin CLI layer (all I/O lives here)
+    FridaHelperCli         # Entry point with try-with-resources Scanner
+    CliMenuHandler         # Interactive menu: parse, generate, queue, compose, print
 ```
 
 The `core` package is designed to be reused in an Android app without modification. It has no dependencies on `java.util.Scanner`, `System.in`, or `System.out`.
-
-**Note on module structure:** Currently `core` and `cli` are packages within a single Gradle module. This is intentional at the current scale. The dependency direction is strictly one-way (`cli` -> `core`, never reverse), so extracting `core` into a separate Gradle module (`:core`) for Android reuse is a trivial refactor:
-
-1. Create `core/build.gradle` with `plugins { id 'java-library' }`
-2. Move `core/` sources into `core/src/main/java/...`
-3. Add `implementation project(':core')` to the CLI and Android app modules
-4. Update `settings.gradle` to include both
-
-## Android Integration (MVVM)
-
-When ready to build the Android app:
-
-```
-settings.gradle:
-  include ':core', ':app'
-
-app/build.gradle:
-  implementation project(':core')
-```
-
-Your `ViewModel` calls `ScriptGenerator.generate(request)` and exposes the result via `LiveData<GeneratedScript>`. Fragments observe and display. The `core` module is tested with plain JUnit — no Android instrumentation needed.
 
 ## CI/CD (GitHub Actions)
 
@@ -311,8 +300,8 @@ Then paste the contents of `keystore-base64.txt` as the `KEYSTORE_BASE64` secret
 ### Creating a release
 
 ```bash
-git tag v3.8.0
-git push origin v3.8.0
+git tag v4.0.0
+git push origin v4.0.0
 ```
 
 The workflow will automatically build, sign, and publish the release.

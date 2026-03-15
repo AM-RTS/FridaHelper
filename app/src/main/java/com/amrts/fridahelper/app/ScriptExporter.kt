@@ -40,10 +40,14 @@ object ScriptExporter {
         }
     }
 
-    fun export(context: Context, scriptContent: String): ExportResult {
-        val filename = "$PREFIX${timestamp()}$EXTENSION"
+    fun export(context: Context, scriptContent: String, customName: String? = null): ExportResult {
+        val baseName = if (!customName.isNullOrBlank()) customName.trim() else "$PREFIX${timestamp()}"
+        val filename = if (baseName.endsWith(EXTENSION)) baseName else "$baseName$EXTENSION"
+        val customDir = ThemeManager.getExportDir(context)
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (customDir.isNotBlank()) {
+                exportToCustomDir(customDir, filename, scriptContent)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 exportViaMediaStore(context, filename, scriptContent)
             } else {
                 exportToAppStorage(context, filename, scriptContent)
@@ -51,6 +55,20 @@ object ScriptExporter {
             ExportResult.success(filename)
         } catch (e: IOException) {
             ExportResult.failure("Failed to save: ${e.message}")
+        }
+    }
+
+    private fun exportToCustomDir(dirPath: String, filename: String, content: String) {
+        val dir = File(dirPath)
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw IOException("Failed to create directory: ${dir.absolutePath}")
+        }
+        if (!dir.canWrite()) {
+            throw IOException("Cannot write to directory: ${dir.absolutePath}")
+        }
+        FileOutputStream(File(dir, filename)).use { fos ->
+            fos.write(content.toByteArray(Charsets.UTF_8))
+            fos.flush()
         }
     }
 

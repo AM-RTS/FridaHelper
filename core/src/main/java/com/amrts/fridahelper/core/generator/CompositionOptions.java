@@ -20,10 +20,12 @@ public final class CompositionOptions {
 
     private final boolean wrapInPerform;
     private final int setTimeoutMs;
+    private final boolean enableStackTrace;
 
-    private CompositionOptions(boolean wrapInPerform, int setTimeoutMs) {
+    private CompositionOptions(boolean wrapInPerform, int setTimeoutMs, boolean enableStackTrace) {
         this.wrapInPerform = wrapInPerform;
         this.setTimeoutMs = Math.max(0, setTimeoutMs);
+        this.enableStackTrace = enableStackTrace;
     }
 
     /**
@@ -42,10 +44,20 @@ public final class CompositionOptions {
         return setTimeoutMs;
     }
 
+    /**
+     * Whether to include stack-trace logging helper functions and calls in each hook body.
+     * Java hooks use a Java.use("android.util.Log") stack trace.
+     * Native hooks use Thread.backtrace().
+     */
+    public boolean isEnableStackTrace() {
+        return enableStackTrace;
+    }
+
     @Override
     public String toString() {
         return "CompositionOptions{wrapInPerform=" + wrapInPerform
-                + ", setTimeoutMs=" + setTimeoutMs + "}";
+                + ", setTimeoutMs=" + setTimeoutMs
+                + ", enableStackTrace=" + enableStackTrace + "}";
     }
 
     // ========== Builder ==========
@@ -67,6 +79,7 @@ public final class CompositionOptions {
     public static final class Builder {
         private boolean wrapInPerform = false;
         private int setTimeoutMs = 0;
+        private boolean enableStackTrace = false;
 
         public Builder wrapInPerform(boolean wrapInPerform) {
             this.wrapInPerform = wrapInPerform;
@@ -78,8 +91,13 @@ public final class CompositionOptions {
             return this;
         }
 
+        public Builder enableStackTrace(boolean enable) {
+            this.enableStackTrace = enable;
+            return this;
+        }
+
         public CompositionOptions build() {
-            return new CompositionOptions(wrapInPerform, setTimeoutMs);
+            return new CompositionOptions(wrapInPerform, setTimeoutMs, enableStackTrace);
         }
     }
 }

@@ -51,6 +51,15 @@ public final class ParamNameGenerator {
     }
 
     /**
+     * Returns type-aware names as an array (avoids generate + split round-trip).
+     */
+    public static String[] generateArray(List<String> paramTypes) {
+        if (paramTypes == null || paramTypes.isEmpty()) return new String[0];
+        String joined = generate(paramTypes);
+        return joined.split(", ");
+    }
+
+    /**
      * Type-aware names derived from the resolved Java types.
      * Numbers are appended only when the same type appears more than once.
      * Falls back to simple a,b,c for types not in the prefix map.
@@ -66,8 +75,7 @@ public final class ParamNameGenerator {
         Map<String, Integer> typeCounts = new HashMap<>();
 
         for (String type : paramTypes) {
-            String key = normalizeType(type);
-            typeCounts.merge(key, 1, Integer::sum);
+            typeCounts.merge(type, 1, Integer::sum);
         }
 
         Map<String, Integer> typeCounters = new HashMap<>();
@@ -75,17 +83,16 @@ public final class ParamNameGenerator {
 
         for (int i = 0; i < n; i++) {
             String type = paramTypes.get(i);
-            String key = normalizeType(type);
-            String prefix = resolvePrefix(key);
+            String prefix = resolvePrefix(type);
 
             if (prefix == null) {
                 names[i] = nameAt(fallbackIdx++);
             } else {
-                int total = typeCounts.getOrDefault(key, 1);
+                int total = typeCounts.getOrDefault(type, 1);
                 if (total == 1) {
                     names[i] = prefix;
                 } else {
-                    int seq = typeCounters.merge(key, 1, Integer::sum);
+                    int seq = typeCounters.merge(type, 1, Integer::sum);
                     names[i] = prefix + seq;
                 }
             }
@@ -138,10 +145,4 @@ public final class ParamNameGenerator {
         return Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
     }
 
-    /**
-     * Strips array brackets for type counting so int[] and int[][] group together.
-     */
-    private static String normalizeType(String type) {
-        return type;
-    }
 }

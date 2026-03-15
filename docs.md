@@ -1,16 +1,16 @@
 # FridaHelper — Architecture & Code Reference
 
-**Version:** 3.8.0 (code 11)
+**Version:** 4.0.0 (code 12)
 **Package:** `com.amrts.fridahelper`
 **Min SDK:** 24 · **Target/Compile:** 34
-**Language:** Java 8
+**Language:** Java 8 (core/cli), Kotlin (app)
 
 ## Modules
 
 | Module | Purpose |
 |--------|---------|
 | `core` | Pure-Java library — parsing, generation, composition. No Android dependency. |
-| `app`  | Android UI — MVVM with ViewModel + LiveData, Material 3, ViewPager2 tabs. |
+| `app`  | Android UI — Kotlin + Jetpack Compose, Material 3, MVVM with ViewModel + StateFlow. |
 | `cli`  | Headless CLI jar — same `core` generators, menu-driven terminal interface. |
 
 ## Package Structure
@@ -19,7 +19,7 @@
 core/
   model/
     SmaliMethod        — Immutable parsed smali method (className, methodName, paramTypes, returnType)
-    NativeSymbol       — Immutable native hook target (Builder pattern; export or address mode)
+    NativeSymbol       — Immutable native hook target (Builder pattern; export or address mode, waitForLoad in both)
     HookRequest        — Tagged union (JAVA | NATIVE) carrying SmaliMethod or NativeSymbol
     GeneratedScript    — Result container (scriptText + hookType)
   parser/
@@ -27,87 +27,89 @@ core/
     ParamTypeResolver    — JVM type descriptor → Java type name (e.g. "Ljava/lang/String;" → "java.lang.String")
   generator/
     ScriptGenerator    — Interface: generate(HookRequest) + generateBody(HookRequest)
-    JavaHookGenerator  — Java.use + overload().implementation script; smart class/param variable naming
-    NativeHookGenerator — Interceptor.attach / Module.findExportByName / waitForLoad (dynamic resolution inside onLibLoaded)
+    JavaHookGenerator  — Java.use + overload().implementation script; smart class/param variable naming; stack trace support
+    NativeHookGenerator — Interceptor.attach / Module.findExportByName / waitForLoad (dynamic resolution for both export & address modes)
     ScriptWrapper      — Static wrappers: Java.perform, setTimeout, setImmediate
-    ScriptComposer     — Merges N hooks → single script (groups same-class Java.use, top-level waitForLoad + wrapped bodies)
-    CompositionOptions — Builder: wrapInPerform, setTimeoutMs
+    ScriptComposer     — Merges N hooks → single script (groups same-class Java.use, deduplicates waitForLoad by library, collision-safe variable names)
+    CompositionOptions — Builder: wrapInPerform, setTimeoutMs, enableStackTrace
   batch/
     SmaliMethodEntry   — Data class: fullSignature + access flags (abstract, synthetic, bridge, constructor, native)
     SmaliFileReader    — Parses .smali files: extracts .class directive + .method entries
     BatchFilter        — Predicate chain: hard rules (abstract/synthetic/bridge skipped) + soft rules (skip constructors, class/method regex)
-    BatchProcessor     — Orchestrates: read → filter → parse → generate composed script
+    BatchProcessor     — Orchestrates batch pipeline (CLI-only, uses java.nio.file.Path)
   util/
-    ParamNameGenerator — Type-aware param names (int→i, String→str; numbered on duplicates; abc fallback)
+    ParamNameGenerator — Type-aware param names (int→i, String→str; numbered on duplicates; abc fallback). Array API avoids split round-trips.
     ObfuscationDetector — Heuristic: non-ASCII (≥ U+0140) or short (< 3 chars) → obfuscated/unsuitable
-  FridaHelperVersion   — Central VERSION constant ("3.8.0")
+    ScriptIndent       — Shared indentation utility for generated scripts (used by ScriptComposer, ScriptWrapper, NativeHookGenerator)
+  FridaHelperVersion   — Central VERSION constant ("4.0.0")
 
 app/
-  MainActivity         — AppCompat host: Toolbar + TabLayout + ViewPager2. Theme toggle only.
-  HookPagerAdapter     — FragmentStateAdapter (page 0 = Java, page 1 = Native)
-  HookViewModel        — Shared ViewModel: single-thread ExecutorService, LiveData streams (java/native/composed/queue/error), generation guard
-  JavaHookFragment     — Input: smali signature + timeout + wrapInPerform. Output: generated script.
-  NativeHookFragment   — Input: lib/export/address + argCount + timeout + waitForLoad + wrapInPerform.
-  HookQueueAdapter     — RecyclerView adapter with DiffUtil for multi-hook queue display.
-  BatchImportDialogHelper — MaterialAlertDialog for batch import: path input + filter toggles (skip constructors, class/method regex).
-  ComposeDialogHelper  — MaterialAlertDialog collecting CompositionOptions before compose.
-  ScriptOutputHelper   — Shared output display/copy/export logic with syntax highlighting and wrap toggle.
-  JsSyntaxHighlighter  — Regex-based JS syntax highlighter (keywords, strings, template literals, Frida API, comments, numbers).
-  ScriptExporter       — Saves script to Documents via MediaStore (API 29+) or external storage (24–28).
-  ThemeManager         — Light / Dark / System toggle, persisted in SharedPreferences.
+  MainActivity         — ComponentActivity with enableEdgeToEdge() + Compose theme. Manages theme state.
+  HookViewModel        — Shared ViewModel: coroutines + Dispatchers.IO, StateFlow/SharedFlow for script outputs, error events, scroll events, auto-scroll setting
+  ThemeManager         — Light / Dark / System toggle, auto-scroll, export directory — all persisted in SharedPreferences
+  ScriptExporter       — Saves scripts to custom directory, Documents/FridaHelper (MediaStore API 29+), or app-specific storage (24–28). Custom filename support.
+  ui/
+    FridaHelperApp       — Scaffold + TopAppBar + SecondaryTabRow + HorizontalPager + Settings DropdownMenu (auto-scroll toggle, export directory)
+    JavaHookScreen       — Java hook tab: smali input, timeout, wrapInPerform, enableStackTrace, batch import, queue, compose, output
+    NativeHookScreen     — Native hook tab: export/address mode, hex validation, waitForLoad (both modes), stack trace, queue, compose, output
+    theme/
+      Color.kt           — Green-derived tonal palette (primary, secondary, tertiary containers, outline variants)
+      Theme.kt           — Light/Dark/Dynamic color schemes with explicit tonal definitions
+      Type.kt            — Typography
+    components/
+      ScriptOutput       — Script display/edit/copy/export with JS syntax highlighting (VisualTransformation), text selection, clear button, export filename dialog
+      HookQueueList      — Collapsible hook queue (auto-collapse > 3 items) with AnimatedVisibility
+      BatchImportDialog  — Batch import dialog with SAF folder picker (folder icon)
 
 cli/
-  FridaHelperCli       — Entry point: banner, menu loop
-  CliMenuHandler       — Interactive menu: parse, generate, queue, compose, print
+  FridaHelperCli       — Entry point: banner, menu loop (try-with-resources Scanner)
+  CliMenuHandler       — Interactive menu: parse, generate, queue, compose, print. Stack trace prompt included.
 ```
 
 ## Data Flow
 
 ```
 User input (smali / native params)
-  → Fragment validates input
+  → Screen validates input
   → HookViewModel.generateJavaHook() or generateNativeHook()
-    → ExecutorService background thread
+    → Dispatchers.IO coroutine
       → SmaliSignatureParser.parse() [Java only]
       → ScriptGenerator.generate(HookRequest)
       → ScriptWrapper.wrapIfNeeded() [optional]
-    → LiveData.postValue(scriptText)
-  → Fragment observes → showOutput()
+    → StateFlow.value = scriptText (clears other outputs)
+    → SharedFlow scrollToOutput emitted
+  → Screen collects StateFlow → ScriptOutput composable
 
 Multi-hook:
-  Fragment → viewModel.addHook(request)   — adds to ScriptComposer queue
-  Fragment → viewModel.composeHooks(opts) — snapshot queue → ScriptComposer.compose() on bg thread
-  Result → composedScriptOutput LiveData  — only active (resumed) fragment observes
+  Screen → viewModel.addHook(request)    — adds to ScriptComposer queue
+  Screen → viewModel.composeHooks(opts)  — snapshot queue → ScriptComposer.compose() on IO
+  Result → composedScriptOutput StateFlow (clears single-hook outputs)
+
+Batch import:
+  BatchImportDialog → viewModel.importSmaliMethods(path, filters)
+    → Dispatchers.IO: read + parse files → returns List<HookRequest>
+    → Main thread: composer.addRequest() for each (avoids race condition)
 ```
 
 ## Key Design Decisions
 
 - **Tagged union** (`HookRequest`) instead of inheritance — simpler for two variants in Java 8.
 - **`generate()` vs `generateBody()`** — `generate()` produces full script with wrappers; `generateBody()` produces raw hook body for composition.
-- **Top-level placement** — `waitForLoad` hooks define top-level `onLibLoaded`/`waitForLibLoading` functions; `Interceptor.attach` uses the dynamically resolved `nativeMethod` variable inside `onLibLoaded` callback.
-- **Single-thread executor** in ViewModel — serializes generation, prevents races, no coroutines needed.
-- **`isResumed()` guard** on composed output — prevents stale display in inactive ViewPager2 tab.
-- **DiffUtil** in HookQueueAdapter — smooth animations instead of `notifyDataSetChanged()`.
+- **`generateWithoutHelpers()`** — NativeHookGenerator method for the composer to avoid duplicating `nativeLog` definitions.
+- **Top-level placement** — `waitForLoad` hooks define top-level `onLibLoaded`/`waitForLibLoading` functions. Composer groups same-library hooks into a single `onLibLoaded` callback.
+- **Stack trace helper outside Java.perform** — `log()` (Java) and `nativeLog()` (Native) are defined at top level; safe because they're called from within `Java.perform`/`Interceptor.attach` callbacks that run in the correct context.
+- **SharedFlow for one-shot events** — Error messages and scroll-to-output events use `SharedFlow` instead of `StateFlow` to ensure every emission triggers a snackbar/scroll, even for identical consecutive errors.
+- **All composer mutations on main thread** — `ScriptComposer` is not thread-safe; batch import returns parsed requests from IO and adds them to the composer on the main thread.
+- **Variable collision avoidance** — `ScriptComposer` tracks `usedVarNames` per composition; `ensureUnique()` appends numeric suffixes on collision.
+- **Obfuscated class naming** — Uses last 2 segments of package (e.g. `com.example.a` → `example_a`) instead of generic `cls`.
+- **`collectAsStateWithLifecycle()`** — All StateFlow collections in Compose use lifecycle-aware collection for resource efficiency.
+- **HorizontalPager swipe vs code scroll** — `userScrollEnabled = !hasVisibleScript` prevents accidental tab switches when scrolling code horizontally.
+- **Auto-scroll opt-out** — Persisted in SharedPreferences. Auto-scroll only fires on explicit generate/compose events (SharedFlow), not on recomposition.
+- **Custom export directory** — Stored in SharedPreferences via ThemeManager. ScriptExporter checks it first; empty falls back to MediaStore/app-storage.
 - **Per-call SimpleDateFormat** in ScriptExporter — avoids thread-safety issues with static formatter.
-- **ScriptOutputHelper** — shared utility class eliminates ~80 LOC duplication between JavaHookFragment and NativeHookFragment for output display, copy, and export.
-- **CoordinatorLayout** — fragment root wraps ScrollView for proper Snackbar anchoring.
-- **Editable script output (Option B)** — read-only by default; explicit Edit/Done toggle switches to EditText. Reset reverts to original generated script. Copy/Export always use currently visible text.
-- **Smart variable naming** — class variable derived from simple class name (camelCased), falls back to `cls` if obfuscated or < 3 chars. Param names are type-aware (`i`, `str`, `b` …) with numbering only on duplicate types; unknown types fall back to `a, b, c`.
-- **Template literal trace logging** — Single `console.log` per hook using JS template literals (`` console.log(`Class.method(${params}) => ${retval}`) ``). Uses simple class name for readable classes, full qualified name for obfuscated ones (varName == "cls").
-- **Same-class Java.use deduplication** — ScriptComposer groups Java hooks by class name, emitting one `var cls = Java.use(...)` per class and generating only the method hooks under it.
-- **Batch import with java.io.File** — Uses `java.io.File` instead of `java.nio.file.Path` for Android API 24+ compatibility. Recursive directory traversal via `File.listFiles()`.
-- **Syntax highlighting via regex+Spannable** — Custom `JsSyntaxHighlighter` with priority-based token claiming (comments > strings > Frida API > keywords > numbers). Live editing uses `applyInPlace(Editable)` to update spans without `setText()` (avoids full layout pass). Dynamic debounce (30-300ms) based on script size.
-- **NestedScrollView** — Replaced ScrollView with NestedScrollView in fragment layouts for proper RecyclerView measurement.
-
-## Layouts
-
-| File | Content |
-|------|---------|
-| `activity_main.xml` | MaterialToolbar + TabLayout + ViewPager2 |
-| `fragment_java_hook.xml` | Smali input + timeout + switches + queue section + output |
-| `fragment_native_hook.xml` | Radio (export/address) + fields + switches + queue + output |
-| `item_hook_queue.xml` | Single queue item row with summary + remove button |
-| `dialog_compose_options.xml` | CheckBox (wrapInPerform) + EditText (timeout) |
+- **AnimatedVisibility** — Script output and hook queue use tuned `tween` animations with M3 easing (FastOutSlowIn enter, FastOutLinearIn exit) and `it / 4` slide offsets.
+- **Collapsible hook queue** — Auto-collapses when > 3 items; expandable via chevron.
+- **SelectionContainer** — Code display wrapped for text selection support.
 
 ## Build
 
@@ -119,3 +121,4 @@ Multi-hook:
 
 Signing uses `keystore.properties` at project root (not committed).
 ProGuard enabled for release with `proguard-rules.pro`.
+Gradle JVM: `-Xmx2048m -XX:MaxMetaspaceSize=512m` (configured in `gradle.properties`).

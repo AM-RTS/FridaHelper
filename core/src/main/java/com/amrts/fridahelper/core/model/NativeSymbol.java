@@ -119,7 +119,7 @@ public final class NativeSymbol {
     /**
      * Builder for NativeSymbol. Enforces valid combinations:
      * - EXPORT mode requires exportName, ADDRESS mode requires address.
-     * - waitForLoad only valid with EXPORT mode (needs a symbol name to hook after load).
+     * - waitForLoad requires a non-null libName in both modes.
      * - argCount defaults to 0.
      */
     public static final class Builder {
@@ -185,9 +185,6 @@ public final class NativeSymbol {
             }
             if (argCount > MAX_ARG_COUNT) {
                 throw new IllegalArgumentException("argCount must be <= " + MAX_ARG_COUNT);
-            }
-            if (waitForLoad && targetMode == TargetMode.ADDRESS) {
-                throw new IllegalArgumentException("waitForLoad is not supported with ADDRESS mode");
             }
             if (waitForLoad && libName == null) {
                 throw new IllegalArgumentException("waitForLoad requires a library name (cannot be null/wildcard)");

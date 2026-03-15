@@ -40,7 +40,6 @@ public class JavaHookGeneratorTest {
               + "foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
               + "    this.bar(i, str);\n"
               + "    console.log(`Foo.bar(${i}, ${str})`);\n"
-              + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "}";
 
         assertEquals(expected, result.getScriptText());
@@ -136,7 +135,6 @@ public class JavaHookGeneratorTest {
               + "    foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
               + "        this.bar(i, str);\n"
               + "        console.log(`Foo.bar(${i}, ${str})`);\n"
-              + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    }\n"
               + "});";
 
@@ -159,7 +157,6 @@ public class JavaHookGeneratorTest {
               + "foo.getName.overload().implementation = function(){\n"
               + "    var retval = this.getName();\n"
               + "    console.log(`Foo.getName() => ${retval}`);\n"
-              + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    return retval;\n"
               + "}";
 
@@ -178,7 +175,7 @@ public class JavaHookGeneratorTest {
 
         GeneratedScript result = generator.generate(request);
         String script = result.getScriptText();
-        assertTrue("Short class 'a' should fallback to cls", script.contains("var cls = Java.use(\"com.example.a\")"));
+        assertTrue("Short class 'a' should use sanitized name", script.contains("var example_a = Java.use(\"com.example.a\")"));
     }
 
     /**
@@ -286,9 +283,16 @@ public class JavaHookGeneratorTest {
 
     @Test
     public void deriveClassVariable_obfuscatedOrShort() {
-        assertEquals("cls", JavaHookGenerator.deriveClassVariable("com.example.a"));
-        assertEquals("cls", JavaHookGenerator.deriveClassVariable("com.example.b0"));
-        assertEquals("cls", JavaHookGenerator.deriveClassVariable("a"));
+        assertEquals("example_a", JavaHookGenerator.deriveClassVariable("com.example.a"));
+        assertEquals("example_b0", JavaHookGenerator.deriveClassVariable("com.example.b0"));
+        assertEquals("a", JavaHookGenerator.deriveClassVariable("a"));
+    }
+
+    @Test
+    public void deriveClassVariable_deepPackageObfuscated() {
+        assertEquals("for_hm", JavaHookGenerator.deriveClassVariable("com.long.clazz.name.this.is.for.hm"));
+        assertEquals("am_h", JavaHookGenerator.deriveClassVariable("am.h"));
+        assertEquals("A2_A", JavaHookGenerator.deriveClassVariable("A2.A"));
     }
 
     @Test

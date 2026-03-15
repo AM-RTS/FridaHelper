@@ -13,7 +13,7 @@ import com.amrts.fridahelper.core.model.HookRequest;
  */
 public final class ScriptWrapper {
 
-    private static final String INDENT = "    ";
+    private static final String INDENT = com.amrts.fridahelper.core.util.ScriptIndent.INDENT;
 
     private ScriptWrapper() { }
 
@@ -59,18 +59,7 @@ public final class ScriptWrapper {
         return new GeneratedScript(wrapped, script.getHookType());
     }
 
-    /**
-     * Indents every non-empty line of a multi-line string by the given prefix.
-     */
     private static String indentBlock(String block, String indent) {
-        String[] lines = block.split("\n", -1);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i > 0) sb.append("\n");
-            if (!lines[i].isEmpty()) {
-                sb.append(indent).append(lines[i]);
-            }
-        }
-        return sb.toString();
+        return com.amrts.fridahelper.core.util.ScriptIndent.indentBlock(block, indent);
     }
 }

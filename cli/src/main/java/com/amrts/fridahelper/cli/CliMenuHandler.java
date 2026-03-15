@@ -59,7 +59,8 @@ public final class CliMenuHandler {
         if (request == null) return;
 
         boolean fullScript = askScriptOrSnippet();
-        GeneratedScript result = javaGenerator.generate(request);
+        boolean stackTrace = askStackTrace();
+        GeneratedScript result = ((JavaHookGenerator) javaGenerator).generate(request, stackTrace);
 
         if (fullScript) {
             result = ScriptWrapper.wrapIfNeeded(result);
@@ -78,7 +79,8 @@ public final class CliMenuHandler {
         HookRequest request = collectNativeHookInput();
         if (request == null) return;
 
-        GeneratedScript result = nativeGenerator.generate(request);
+        boolean stackTrace = askStackTrace();
+        GeneratedScript result = ((NativeHookGenerator) nativeGenerator).generate(request, stackTrace);
 
         System.out.println("\n[*] Here's your native frida script! :\n");
         System.out.println(result.getScriptText());
@@ -193,10 +195,11 @@ public final class CliMenuHandler {
             return;
         }
 
-        // Collect composition options
         System.out.print("Wrap in Java.perform? (y/n): ");
         String performChoice = scanner.nextLine().trim().toLowerCase();
         boolean wrapInPerform = "y".equals(performChoice) || "yes".equals(performChoice);
+
+        boolean stackTrace = askStackTrace();
 
         System.out.print("setTimeout delay in ms (0 for none): ");
         int timeoutMs = 0;
@@ -209,6 +212,7 @@ public final class CliMenuHandler {
 
         CompositionOptions options = CompositionOptions.builder()
                 .wrapInPerform(wrapInPerform)
+                .enableStackTrace(stackTrace)
                 .setTimeoutMs(timeoutMs)
                 .build();
 
@@ -366,6 +370,12 @@ public final class CliMenuHandler {
      * Asks the user whether to generate a full script or snippet.
      * Returns true for full script, false for snippet.
      */
+    private boolean askStackTrace() {
+        System.out.print("Enable stack trace logging? (y/n): ");
+        String choice = scanner.nextLine().trim().toLowerCase();
+        return "y".equals(choice) || "yes".equals(choice);
+    }
+
     private boolean askScriptOrSnippet() {
         System.out.println("\nSelect Mode:\n1. Script (wrapped in Java.perform)\n2. Snippet (hook only)");
         while (true) {

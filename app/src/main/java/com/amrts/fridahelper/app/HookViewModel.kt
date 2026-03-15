@@ -1,7 +1,5 @@
 package com.amrts.fridahelper.app
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.amrts.fridahelper.core.batch.BatchFilter
@@ -16,20 +14,24 @@ import com.amrts.fridahelper.core.model.HookRequest
 import com.amrts.fridahelper.core.model.NativeSymbol
 import com.amrts.fridahelper.core.parser.SmaliSignatureParser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
 import java.io.IOException
-import java.util.Collections
 
 /**
  * Shared ViewModel for both Java and Native hook generation and multi-hook composition.
  *
  * Uses coroutines via viewModelScope for background work.
- * Separate LiveData streams for Java, Native, and composed output.
- * Hook queue is maintained internally via ScriptComposer.
+ * Exposes StateFlow for Compose integration (collectAsStateWithLifecycle).
  */
 class HookViewModel : ViewModel() {
 
@@ -38,45 +40,52 @@ class HookViewModel : ViewModel() {
     private val nativeGenerator = NativeHookGenerator()
     private val composer = ScriptComposer()
 
-    private val _javaScriptOutput = MutableLiveData<String?>()
-    val javaScriptOutput: LiveData<String?> get() = _javaScriptOutput
+    private val _javaScriptOutput = MutableStateFlow<String?>(null)
+    val javaScriptOutput: StateFlow<String?> = _javaScriptOutput.asStateFlow()
 
-    private val _javaErrorMessage = MutableLiveData<String?>()
-    val javaErrorMessage: LiveData<String?> get() = _javaErrorMessage
+    private val _javaErrorMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val javaErrorMessage: SharedFlow<String> = _javaErrorMessage.asSharedFlow()
 
-    private val _nativeScriptOutput = MutableLiveData<String?>()
-    val nativeScriptOutput: LiveData<String?> get() = _nativeScriptOutput
+    private val _nativeScriptOutput = MutableStateFlow<String?>(null)
+    val nativeScriptOutput: StateFlow<String?> = _nativeScriptOutput.asStateFlow()
 
-    private val _nativeErrorMessage = MutableLiveData<String?>()
-    val nativeErrorMessage: LiveData<String?> get() = _nativeErrorMessage
+    private val _nativeErrorMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val nativeErrorMessage: SharedFlow<String> = _nativeErrorMessage.asSharedFlow()
 
-    private val _composedScriptOutput = MutableLiveData<String?>()
-    val composedScriptOutput: LiveData<String?> get() = _composedScriptOutput
+    private val _composedScriptOutput = MutableStateFlow<String?>(null)
+    val composedScriptOutput: StateFlow<String?> = _composedScriptOutput.asStateFlow()
 
-    private val _composedErrorMessage = MutableLiveData<String?>()
-    val composedErrorMessage: LiveData<String?> get() = _composedErrorMessage
+    private val _composedErrorMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val composedErrorMessage: SharedFlow<String> = _composedErrorMessage.asSharedFlow()
 
-    private val _hookQueue = MutableLiveData<List<HookRequest>>(emptyList())
-    val hookQueue: LiveData<List<HookRequest>> get() = _hookQueue
+    private val _hookQueue = MutableStateFlow<List<HookRequest>>(emptyList())
+    val hookQueue: StateFlow<List<HookRequest>> = _hookQueue.asStateFlow()
 
-    private val _importResult = MutableLiveData<ImportResult>()
-    val importResult: LiveData<ImportResult> get() = _importResult
+    private val _importResult = MutableStateFlow<ImportResult?>(null)
+    val importResult: StateFlow<ImportResult?> = _importResult.asStateFlow()
 
-    private val _isGenerating = MutableLiveData(false)
-    val isGenerating: LiveData<Boolean> get() = _isGenerating
+    private val _isGenerating = MutableStateFlow(false)
+
+    private val _scrollToOutput = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val scrollToOutput: SharedFlow<Unit> = _scrollToOutput.asSharedFlow()
+
+    val autoScrollEnabled = MutableStateFlow(true)
 
     // ========== Batch import ==========
 
     fun importSmaliMethods(pathString: String, filter: BatchFilter) {
-        if (_isGenerating.value == true) return
+        if (_isGenerating.value) return
         _isGenerating.value = true
 
         viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
+                val (result, requests) = withContext(Dispatchers.IO) {
                     doImport(pathString, filter)
                 }
-                _hookQueue.value = Collections.unmodifiableList(ArrayList(composer.requests))
+                for (request in requests) {
+                    composer.addRequest(request)
+                }
+                _hookQueue.value = ArrayList(composer.requests)
                 _importResult.value = result
             } catch (e: Exception) {
                 _importResult.value = ImportResult.error(
@@ -88,10 +97,14 @@ class HookViewModel : ViewModel() {
         }
     }
 
-    private fun doImport(pathString: String, filter: BatchFilter): ImportResult {
+    fun consumeImportResult() {
+        _importResult.value = null
+    }
+
+    private fun doImport(pathString: String, filter: BatchFilter): Pair<ImportResult, List<HookRequest>> {
         val file = File(pathString)
-        if (!file.exists()) return ImportResult.error("Path does not exist: $pathString")
-        if (!file.canRead()) return ImportResult.error("Cannot read path (check storage permissions): $pathString")
+        if (!file.exists()) return ImportResult.error("Path does not exist: $pathString") to emptyList()
+        if (!file.canRead()) return ImportResult.error("Cannot read path (check storage permissions): $pathString") to emptyList()
 
         val reader = SmaliFileReader()
         val entries = mutableListOf<SmaliMethodEntry>()
@@ -99,21 +112,21 @@ class HookViewModel : ViewModel() {
         when {
             file.isDirectory -> collectSmaliEntries(file, reader, entries)
             file.name.endsWith(".smali") -> entries.addAll(reader.parseLines(readLines(file)))
-            else -> return ImportResult.error("Not a .smali file or directory")
+            else -> return ImportResult.error("Not a .smali file or directory") to emptyList()
         }
 
         val filtered = filter.apply(entries)
         val localParser = SmaliSignatureParser()
-        var added = 0
+        val requests = mutableListOf<HookRequest>()
         for (entry in filtered) {
             try {
                 val method = localParser.parse(entry.fullSignature)
-                composer.addRequest(HookRequest.java(method))
-                added++
+                requests.add(HookRequest.java(method))
             } catch (_: IllegalArgumentException) { }
         }
 
-        return if (added > 0) ImportResult.success(added) else ImportResult.empty()
+        val result = if (requests.isNotEmpty()) ImportResult.success(requests.size) else ImportResult.empty()
+        return result to requests
     }
 
     private fun collectSmaliEntries(dir: File, reader: SmaliFileReader, out: MutableList<SmaliMethodEntry>) {
@@ -174,12 +187,18 @@ class HookViewModel : ViewModel() {
         publishQueue()
     }
 
+    fun clearScriptOutput() {
+        _javaScriptOutput.value = null
+        _nativeScriptOutput.value = null
+        _composedScriptOutput.value = null
+    }
+
     val queueSize: Int get() = composer.size()
 
     fun composeHooks(options: CompositionOptions) {
-        if (_isGenerating.value == true) return
+        if (_isGenerating.value) return
         if (composer.size() == 0) {
-            _composedErrorMessage.value = "Queue is empty. Add hooks first."
+            _composedErrorMessage.tryEmit("Queue is empty. Add hooks first.")
             return
         }
         _isGenerating.value = true
@@ -190,10 +209,12 @@ class HookViewModel : ViewModel() {
                 val result = withContext(Dispatchers.IO) {
                     ScriptComposer(snapshot).compose(options)
                 }
+                _javaScriptOutput.value = null
+                _nativeScriptOutput.value = null
                 _composedScriptOutput.value = result.scriptText
-                _composedErrorMessage.value = null
+                _scrollToOutput.tryEmit(Unit)
             } catch (e: Exception) {
-                _composedErrorMessage.value = e.message
+                _composedErrorMessage.tryEmit(e.message ?: "Composition failed")
                 _composedScriptOutput.value = null
             } finally {
                 _isGenerating.value = false
@@ -202,13 +223,13 @@ class HookViewModel : ViewModel() {
     }
 
     private fun publishQueue() {
-        _hookQueue.value = Collections.unmodifiableList(ArrayList(composer.requests))
+        _hookQueue.value = ArrayList(composer.requests)
     }
 
     // ========== Single-hook generation ==========
 
-    fun generateJavaHook(smaliSignature: String, wrapInPerform: Boolean, timeoutMs: Int) {
-        if (_isGenerating.value == true) return
+    fun generateJavaHook(smaliSignature: String, wrapInPerform: Boolean, timeoutMs: Int, enableStackTrace: Boolean = false) {
+        if (_isGenerating.value) return
         _isGenerating.value = true
 
         viewModelScope.launch {
@@ -216,15 +237,16 @@ class HookViewModel : ViewModel() {
                 val scriptText = withContext(Dispatchers.IO) {
                     val method = parser.parse(smaliSignature)
                     val request = HookRequest.java(method)
-                    var result = javaGenerator.generate(request)
+                    var result = javaGenerator.generate(request, enableStackTrace)
                     if (wrapInPerform) result = ScriptWrapper.wrapIfNeeded(result)
                     if (timeoutMs > 0) result = ScriptWrapper.wrapInSetTimeout(result, timeoutMs)
                     result.scriptText
                 }
+                _composedScriptOutput.value = null
                 _javaScriptOutput.value = scriptText
-                _javaErrorMessage.value = null
+                _scrollToOutput.tryEmit(Unit)
             } catch (e: Exception) {
-                _javaErrorMessage.value = e.message
+                _javaErrorMessage.tryEmit(e.message ?: "Generation failed")
                 _javaScriptOutput.value = null
             } finally {
                 _isGenerating.value = false
@@ -232,8 +254,8 @@ class HookViewModel : ViewModel() {
         }
     }
 
-    fun generateNativeHook(symbol: NativeSymbol, wrapInPerform: Boolean) {
-        if (_isGenerating.value == true) return
+    fun generateNativeHook(symbol: NativeSymbol, wrapInPerform: Boolean, enableStackTrace: Boolean = false) {
+        if (_isGenerating.value) return
         _isGenerating.value = true
 
         viewModelScope.launch {
@@ -245,15 +267,16 @@ class HookViewModel : ViewModel() {
                     } else symbol
 
                     val request = HookRequest.nativeHook(genSymbol)
-                    var result = nativeGenerator.generate(request)
+                    var result = nativeGenerator.generate(request, enableStackTrace)
                     if (wrapInPerform) result = ScriptWrapper.wrapInJavaPerform(result)
                     if (wrapInPerform && timeoutMs > 0) result = ScriptWrapper.wrapInSetTimeout(result, timeoutMs)
                     result.scriptText
                 }
+                _composedScriptOutput.value = null
                 _nativeScriptOutput.value = scriptText
-                _nativeErrorMessage.value = null
+                _scrollToOutput.tryEmit(Unit)
             } catch (e: Exception) {
-                _nativeErrorMessage.value = e.message
+                _nativeErrorMessage.tryEmit(e.message ?: "Generation failed")
                 _nativeScriptOutput.value = null
             } finally {
                 _isGenerating.value = false
@@ -294,7 +317,6 @@ class HookViewModel : ViewModel() {
         const val MAX_ARG_COUNT = NativeSymbol.MAX_ARG_COUNT
         const val MAX_TIMEOUT_MS = 999999
 
-        @JvmStatic
         fun safeParseInt(text: String?, defaultValue: Int, maxValue: Int): ParseResult {
             val trimmed = text?.trim().orEmpty()
             if (trimmed.isEmpty()) return ParseResult.success(defaultValue)
