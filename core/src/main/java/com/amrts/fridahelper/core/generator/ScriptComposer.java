@@ -5,7 +5,9 @@ import com.amrts.fridahelper.core.model.HookRequest;
 import com.amrts.fridahelper.core.model.NativeSymbol;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Composes multiple hook requests into a single Frida script.
@@ -147,18 +149,40 @@ public final class ScriptComposer {
         List<String> wrappedBodies = new ArrayList<>();
         boolean hasJava = false;
 
+        // Group Java hooks by class name (preserving first-seen order).
+        // Native hooks go directly into wrappedBodies.
+        LinkedHashMap<String, List<HookRequest>> javaByClass = new LinkedHashMap<>();
+        List<Object> bodyOrder = new ArrayList<>(); // String (native body) or String (class key)
+
         for (HookRequest request : requests) {
             if (isTopLevelHook(request)) {
-                // waitForLoad hooks are emitted fully generated (with their own wrappers)
                 GeneratedScript full = nativeGenerator.generate(request);
                 topLevelScripts.add(full.getScriptText());
-            } else {
-                // All other hooks contribute their raw body to the wrapped section
-                GeneratedScript body = generateBodyFor(request);
-                wrappedBodies.add(body.getScriptText());
-                if (request.getType() == HookRequest.Type.JAVA) {
-                    hasJava = true;
+            } else if (request.getType() == HookRequest.Type.JAVA) {
+                hasJava = true;
+                String className = request.getSmaliMethod().getClassName();
+                if (!javaByClass.containsKey(className)) {
+                    javaByClass.put(className, new ArrayList<HookRequest>());
+                    bodyOrder.add(className);
                 }
+                javaByClass.get(className).add(request);
+            } else {
+                GeneratedScript body = nativeGenerator.generateBody(request);
+                String bodyText = body.getScriptText();
+                wrappedBodies.add(bodyText);
+                bodyOrder.add(bodyText);
+            }
+        }
+
+        // Build merged bodies in insertion order (first-seen for each class group)
+        wrappedBodies.clear();
+        for (Object item : bodyOrder) {
+            if (item instanceof String && javaByClass.containsKey(item)) {
+                String className = (String) item;
+                List<HookRequest> group = javaByClass.get(className);
+                wrappedBodies.add(buildJavaClassGroup(className, group));
+            } else if (item instanceof String) {
+                wrappedBodies.add((String) item);
             }
         }
 
@@ -188,23 +212,28 @@ public final class ScriptComposer {
     }
 
     /**
+     * Builds a single block for multiple Java hooks targeting the same class.
+     * Emits Java.use once, then each method hook using the shared variable.
+     */
+    private String buildJavaClassGroup(String className, List<HookRequest> hooks) {
+        String varName = JavaHookGenerator.deriveClassVariable(className);
+        StringBuilder sb = new StringBuilder();
+        sb.append("var ").append(varName).append(" = Java.use(\"").append(className).append("\");\n");
+
+        for (int i = 0; i < hooks.size(); i++) {
+            if (i > 0) sb.append("\n\n");
+            sb.append(javaGenerator.generateMethodHook(hooks.get(i), varName));
+        }
+        return sb.toString();
+    }
+
+    /**
      * A hook is "top-level" if it's a native hook with waitForLoad enabled.
      * These define functions at the script root and cannot be nested inside wrappers.
      */
     private boolean isTopLevelHook(HookRequest request) {
         return request.getType() == HookRequest.Type.NATIVE
                 && request.getNativeSymbol().isWaitForLoad();
-    }
-
-    /**
-     * Dispatches to the correct generator's generateBody() based on request type.
-     */
-    private GeneratedScript generateBodyFor(HookRequest request) {
-        if (request.getType() == HookRequest.Type.JAVA) {
-            return javaGenerator.generateBody(request);
-        } else {
-            return nativeGenerator.generateBody(request);
-        }
     }
 
     /**

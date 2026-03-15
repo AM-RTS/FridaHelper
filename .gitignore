@@ -22,6 +22,9 @@ keystore.properties
 *.jks
 *.keystore
 
+# APK artifacts (release APKs are attached to GitHub Releases, not committed)
+*.apk
+
 # OS
 .DS_Store
 Thumbs.db

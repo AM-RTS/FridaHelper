@@ -1,6 +1,13 @@
 package com.amrts.fridahelper.app;
 
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,6 +15,7 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -63,6 +71,8 @@ public class JavaHookFragment extends Fragment {
         MaterialButton btnGenerate = view.findViewById(R.id.btn_generate);
         MaterialButton btnAddToQueue = view.findViewById(R.id.btn_add_to_queue);
 
+        MaterialButton btnImport = view.findViewById(R.id.btn_import_smali);
+
         outputHelper = new ScriptOutputHelper(view.findViewById(R.id.coordinator));
 
         labelQueue = view.findViewById(R.id.label_queue);
@@ -78,6 +88,7 @@ public class JavaHookFragment extends Fragment {
 
         btnGenerate.setOnClickListener(v -> onGenerate());
         btnAddToQueue.setOnClickListener(v -> onAddToQueue());
+        btnImport.setOnClickListener(v -> onImportClicked());
         btnCompose.setOnClickListener(v -> onCompose());
         btnClearQueue.setOnClickListener(v -> {
             viewModel.clearHooks();
@@ -116,6 +127,67 @@ public class JavaHookFragment extends Fragment {
         });
 
         viewModel.getHookQueue().observe(getViewLifecycleOwner(), this::updateQueueUI);
+
+        viewModel.getImportResult().observe(getViewLifecycleOwner(), result -> {
+            if (result == null) return;
+            switch (result.getStatus()) {
+                case SUCCESS:
+                    snackbar(getString(R.string.msg_import_success, result.getCount()),
+                            Snackbar.LENGTH_SHORT);
+                    break;
+                case EMPTY:
+                    snackbar(R.string.msg_import_empty, Snackbar.LENGTH_LONG);
+                    break;
+                case ERROR:
+                    snackbar(result.getErrorMessage(), Snackbar.LENGTH_LONG);
+                    break;
+            }
+        });
+    }
+
+    private void onImportClicked() {
+        if (!hasStorageAccess()) {
+            requestStorageAccess();
+            return;
+        }
+        BatchImportDialogHelper.show(requireContext(),
+                (path, filter) -> viewModel.importSmaliMethods(path, filter));
+    }
+
+    private boolean hasStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return Environment.isExternalStorageManager();
+        }
+        return ContextCompat.checkSelfPermission(requireContext(),
+                Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+                intent.setData(Uri.parse("package:" + requireContext().getPackageName()));
+                startActivity(intent);
+            } catch (Exception e) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                startActivity(intent);
+            }
+            snackbar("Grant storage access, then try importing again", Snackbar.LENGTH_LONG);
+        } else {
+            requestPermissions(
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 100);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == 100 && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            onImportClicked();
+        } else {
+            snackbar("Storage permission required to read .smali files", Snackbar.LENGTH_LONG);
+        }
     }
 
     private void onGenerate() {

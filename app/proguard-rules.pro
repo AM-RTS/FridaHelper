@@ -5,6 +5,7 @@
 -keep class com.amrts.fridahelper.core.generator.** { *; }
 -keep class com.amrts.fridahelper.core.parser.** { *; }
 -keep class com.amrts.fridahelper.core.util.** { *; }
+-keep class com.amrts.fridahelper.core.batch.** { *; }
 -keep class com.amrts.fridahelper.core.FridaHelperVersion { *; }
 
 # Keep app fragments (referenced by FragmentStateAdapter)

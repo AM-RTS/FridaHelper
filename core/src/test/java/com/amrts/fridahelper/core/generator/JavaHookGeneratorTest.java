@@ -38,9 +38,8 @@ public class JavaHookGeneratorTest {
         String expected =
                 "var foo = Java.use(\"com.example.Foo\");\n"
               + "foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
-              + "    console.log(\"Param 1: \" + i);\n"
-              + "    console.log(\"Param 2: \" + str);\n"
               + "    this.bar(i, str);\n"
+              + "    console.log(`Foo.bar(${i}, ${str})`);\n"
               + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "}";
 
@@ -62,7 +61,7 @@ public class JavaHookGeneratorTest {
         String script = result.getScriptText();
         assertTrue(script.contains(".overload()"));
         assertTrue(script.contains("function()"));
-        assertFalse(script.contains("console.log(\"Param"));
+        assertTrue(script.contains("console.log(`Foo.getName() => ${retval}`)")); 
     }
 
     /**
@@ -135,9 +134,8 @@ public class JavaHookGeneratorTest {
                 "Java.perform(function(){\n"
               + "    var foo = Java.use(\"com.example.Foo\");\n"
               + "    foo.bar.overload(\"int\", \"java.lang.String\").implementation = function(i, str){\n"
-              + "        console.log(\"Param 1: \" + i);\n"
-              + "        console.log(\"Param 2: \" + str);\n"
               + "        this.bar(i, str);\n"
+              + "        console.log(`Foo.bar(${i}, ${str})`);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    }\n"
               + "});";
@@ -160,7 +158,7 @@ public class JavaHookGeneratorTest {
                 "var foo = Java.use(\"com.example.Foo\");\n"
               + "foo.getName.overload().implementation = function(){\n"
               + "    var retval = this.getName();\n"
-              + "    console.log(\"Return Value: \" + retval);\n"
+              + "    console.log(`Foo.getName() => ${retval}`);\n"
               + "    //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    return retval;\n"
               + "}";
@@ -242,8 +240,9 @@ public class JavaHookGeneratorTest {
         String script = result.getScriptText();
 
         assertTrue(script.contains("this.doWork(i);"));
+        assertTrue(script.contains("console.log(`Foo.doWork(${i})`)"));
         assertFalse(script.contains("var retval"));
-        assertFalse(script.contains("Return Value"));
+        assertFalse(script.contains("=> ${retval}"));
         assertFalse(script.contains("return retval"));
     }
 
@@ -261,7 +260,7 @@ public class JavaHookGeneratorTest {
         String script = result.getScriptText();
 
         assertTrue(script.contains("var retval = this.compute(i);"));
-        assertTrue(script.contains("console.log(\"Return Value: \" + retval)"));
+        assertTrue(script.contains("console.log(`Foo.compute(${i}) => ${retval}`)"));
         assertTrue(script.contains("return retval;"));
     }
 

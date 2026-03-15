@@ -4,6 +4,9 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.amrts.fridahelper.core.batch.BatchFilter;
+import com.amrts.fridahelper.core.batch.SmaliFileReader;
+import com.amrts.fridahelper.core.batch.SmaliMethodEntry;
 import com.amrts.fridahelper.core.generator.CompositionOptions;
 import com.amrts.fridahelper.core.generator.JavaHookGenerator;
 import com.amrts.fridahelper.core.generator.NativeHookGenerator;
@@ -16,6 +19,10 @@ import com.amrts.fridahelper.core.model.NativeSymbol;
 import com.amrts.fridahelper.core.model.SmaliMethod;
 import com.amrts.fridahelper.core.parser.SmaliSignatureParser;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -67,6 +74,9 @@ public class HookViewModel extends ViewModel {
     // Hook queue state
     private final MutableLiveData<List<HookRequest>> hookQueue = new MutableLiveData<>(new ArrayList<>());
 
+    // Batch import result: positive int string = success count, other string = error message
+    private final MutableLiveData<ImportResult> importResult = new MutableLiveData<>();
+
     // Shared generation guard
     private final MutableLiveData<Boolean> isGenerating = new MutableLiveData<>(false);
 
@@ -84,6 +94,134 @@ public class HookViewModel extends ViewModel {
     public LiveData<List<HookRequest>> getHookQueue() { return hookQueue; }
 
     public LiveData<Boolean> getIsGenerating() { return isGenerating; }
+
+    public LiveData<ImportResult> getImportResult() { return importResult; }
+
+    // ========== Batch import ==========
+
+    /**
+     * Imports hookable methods from .smali file(s) into the composition queue.
+     * Uses java.io.File (not NIO) for Android API 24+ compatibility.
+     */
+    public void importSmaliMethods(String pathString, BatchFilter filter) {
+        if (Boolean.TRUE.equals(isGenerating.getValue())) return;
+        isGenerating.setValue(true);
+
+        executor.execute(() -> {
+            try {
+                File file = new File(pathString);
+
+                if (!file.exists()) {
+                    importResult.postValue(ImportResult.error("Path does not exist: " + pathString));
+                    return;
+                }
+                if (!file.canRead()) {
+                    importResult.postValue(ImportResult.error(
+                            "Cannot read path (check storage permissions): " + pathString));
+                    return;
+                }
+
+                SmaliFileReader reader = new SmaliFileReader();
+                List<SmaliMethodEntry> entries = new ArrayList<>();
+
+                if (file.isDirectory()) {
+                    collectSmaliEntries(file, reader, entries);
+                } else if (file.getName().endsWith(".smali")) {
+                    List<String> lines = readLines(file);
+                    entries.addAll(reader.parseLines(lines));
+                } else {
+                    importResult.postValue(ImportResult.error("Not a .smali file or directory"));
+                    return;
+                }
+
+                List<SmaliMethodEntry> filtered = filter.apply(entries);
+
+                SmaliSignatureParser localParser = new SmaliSignatureParser();
+                int added = 0;
+                for (SmaliMethodEntry entry : filtered) {
+                    try {
+                        SmaliMethod method = localParser.parse(entry.getFullSignature());
+                        composer.addRequest(HookRequest.java(method));
+                        added++;
+                    } catch (IllegalArgumentException ignored) { }
+                }
+
+                hookQueue.postValue(Collections.unmodifiableList(
+                        new ArrayList<>(composer.getRequests())));
+
+                if (added > 0) {
+                    importResult.postValue(ImportResult.success(added));
+                } else {
+                    importResult.postValue(ImportResult.empty());
+                }
+            } catch (Exception e) {
+                importResult.postValue(ImportResult.error(
+                        "Import failed: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName())));
+            } finally {
+                isGenerating.postValue(false);
+            }
+        });
+    }
+
+    /** Recursively collects SmaliMethodEntry from all .smali files in a directory. */
+    private void collectSmaliEntries(File dir, SmaliFileReader reader,
+                                     List<SmaliMethodEntry> out) {
+        File[] children = dir.listFiles();
+        if (children == null) return;
+        for (File child : children) {
+            if (child.isDirectory()) {
+                collectSmaliEntries(child, reader, out);
+            } else if (child.getName().endsWith(".smali") && child.canRead()) {
+                try {
+                    List<String> lines = readLines(child);
+                    out.addAll(reader.parseLines(lines));
+                } catch (IOException ignored) { }
+            }
+        }
+    }
+
+    /** Reads all lines from a file using java.io (works on all Android versions). */
+    private static List<String> readLines(File file) throws IOException {
+        List<String> lines = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    /** Typed result for batch import operations. */
+    public static final class ImportResult {
+        public enum Status { SUCCESS, EMPTY, ERROR }
+
+        private final Status status;
+        private final int count;
+        private final String errorMessage;
+
+        private ImportResult(Status status, int count, String errorMessage) {
+            this.status = status;
+            this.count = count;
+            this.errorMessage = errorMessage;
+        }
+
+        public static ImportResult success(int count) {
+            return new ImportResult(Status.SUCCESS, count, null);
+        }
+
+        public static ImportResult empty() {
+            return new ImportResult(Status.EMPTY, 0, null);
+        }
+
+        public static ImportResult error(String message) {
+            return new ImportResult(Status.ERROR, 0, message);
+        }
+
+        public Status getStatus() { return status; }
+        public int getCount() { return count; }
+        public String getErrorMessage() { return errorMessage; }
+    }
 
     // ========== Hook queue management ==========
 

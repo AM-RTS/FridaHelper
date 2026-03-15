@@ -1,6 +1,6 @@
 # FridaHelper — Architecture & Code Reference
 
-**Version:** 3.6.0 (code 8)
+**Version:** 3.8.0 (code 11)
 **Package:** `com.amrts.fridahelper`
 **Min SDK:** 24 · **Target/Compile:** 34
 **Language:** Java 8
@@ -30,13 +30,17 @@ core/
     JavaHookGenerator  — Java.use + overload().implementation script; smart class/param variable naming
     NativeHookGenerator — Interceptor.attach / Module.findExportByName / waitForLoad (dynamic resolution inside onLibLoaded)
     ScriptWrapper      — Static wrappers: Java.perform, setTimeout, setImmediate
-    ScriptComposer     — Merges N hooks → single script (top-level waitForLoad + wrapped bodies)
+    ScriptComposer     — Merges N hooks → single script (groups same-class Java.use, top-level waitForLoad + wrapped bodies)
     CompositionOptions — Builder: wrapInPerform, setTimeoutMs
+  batch/
+    SmaliMethodEntry   — Data class: fullSignature + access flags (abstract, synthetic, bridge, constructor, native)
+    SmaliFileReader    — Parses .smali files: extracts .class directive + .method entries
+    BatchFilter        — Predicate chain: hard rules (abstract/synthetic/bridge skipped) + soft rules (skip constructors, class/method regex)
+    BatchProcessor     — Orchestrates: read → filter → parse → generate composed script
   util/
     ParamNameGenerator — Type-aware param names (int→i, String→str; numbered on duplicates; abc fallback)
     ObfuscationDetector — Heuristic: non-ASCII (≥ U+0140) or short (< 3 chars) → obfuscated/unsuitable
-  ScriptOutputHelper   — Shared output display/copy/export logic (eliminates Fragment duplication)
-  FridaHelperVersion   — Central VERSION constant ("3.6.0")
+  FridaHelperVersion   — Central VERSION constant ("3.8.0")
 
 app/
   MainActivity         — AppCompat host: Toolbar + TabLayout + ViewPager2. Theme toggle only.
@@ -45,7 +49,10 @@ app/
   JavaHookFragment     — Input: smali signature + timeout + wrapInPerform. Output: generated script.
   NativeHookFragment   — Input: lib/export/address + argCount + timeout + waitForLoad + wrapInPerform.
   HookQueueAdapter     — RecyclerView adapter with DiffUtil for multi-hook queue display.
+  BatchImportDialogHelper — MaterialAlertDialog for batch import: path input + filter toggles (skip constructors, class/method regex).
   ComposeDialogHelper  — MaterialAlertDialog collecting CompositionOptions before compose.
+  ScriptOutputHelper   — Shared output display/copy/export logic with syntax highlighting and wrap toggle.
+  JsSyntaxHighlighter  — Regex-based JS syntax highlighter (keywords, strings, template literals, Frida API, comments, numbers).
   ScriptExporter       — Saves script to Documents via MediaStore (API 29+) or external storage (24–28).
   ThemeManager         — Light / Dark / System toggle, persisted in SharedPreferences.
 
@@ -86,6 +93,11 @@ Multi-hook:
 - **CoordinatorLayout** — fragment root wraps ScrollView for proper Snackbar anchoring.
 - **Editable script output (Option B)** — read-only by default; explicit Edit/Done toggle switches to EditText. Reset reverts to original generated script. Copy/Export always use currently visible text.
 - **Smart variable naming** — class variable derived from simple class name (camelCased), falls back to `cls` if obfuscated or < 3 chars. Param names are type-aware (`i`, `str`, `b` …) with numbering only on duplicate types; unknown types fall back to `a, b, c`.
+- **Template literal trace logging** — Single `console.log` per hook using JS template literals (`` console.log(`Class.method(${params}) => ${retval}`) ``). Uses simple class name for readable classes, full qualified name for obfuscated ones (varName == "cls").
+- **Same-class Java.use deduplication** — ScriptComposer groups Java hooks by class name, emitting one `var cls = Java.use(...)` per class and generating only the method hooks under it.
+- **Batch import with java.io.File** — Uses `java.io.File` instead of `java.nio.file.Path` for Android API 24+ compatibility. Recursive directory traversal via `File.listFiles()`.
+- **Syntax highlighting via regex+Spannable** — Custom `JsSyntaxHighlighter` with priority-based token claiming (comments > strings > Frida API > keywords > numbers). Live editing uses `applyInPlace(Editable)` to update spans without `setText()` (avoids full layout pass). Dynamic debounce (30-300ms) based on script size.
+- **NestedScrollView** — Replaced ScrollView with NestedScrollView in fragment layouts for proper RecyclerView measurement.
 
 ## Layouts
 

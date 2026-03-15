@@ -141,6 +141,34 @@ public class ScriptComposerTest {
     }
 
     @Test
+    public void sameClassJavaHooksGrouped_singleJavaUse() {
+        composer.addRequest(javaRequest("com.example.Foo", "bar"));
+        composer.addRequest(javaRequest("com.example.Foo", "baz"));
+        GeneratedScript result = composer.compose(CompositionOptions.none());
+
+        String script = result.getScriptText();
+        assertEquals(1, countOccurrences(script, "Java.use(\"com.example.Foo\")"));
+        assertTrue(script.contains("foo.bar.overload()"));
+        assertTrue(script.contains("foo.baz.overload()"));
+    }
+
+    @Test
+    public void sameClassJavaHooksGrouped_withPerform() {
+        composer.addRequest(javaRequest("com.example.Foo", "first"));
+        composer.addRequest(javaRequest("com.example.Foo", "second"));
+        composer.addRequest(javaRequest("com.example.Bar", "other"));
+        GeneratedScript result = composer.compose(CompositionOptions.withPerform());
+
+        String script = result.getScriptText();
+        assertEquals(1, countOccurrences(script, "Java.use(\"com.example.Foo\")"));
+        assertEquals(1, countOccurrences(script, "Java.use(\"com.example.Bar\")"));
+        assertEquals(1, countOccurrences(script, "Java.perform(function(){"));
+        assertTrue(script.contains("foo.first.overload()"));
+        assertTrue(script.contains("foo.second.overload()"));
+        assertTrue(script.contains("bar.other.overload()"));
+    }
+
+    @Test
     public void twoNativeHooksMerged() {
         composer.addRequest(nativeExportRequest("libfoo.so", "func_a", 1));
         composer.addRequest(nativeExportRequest("libbar.so", "func_b", 2));
@@ -396,15 +424,15 @@ public class ScriptComposerTest {
                 "Java.perform(function(){\n"
               + "    var foo = Java.use(\"com.Foo\");\n"
               + "    foo.bar.overload(\"int\").implementation = function(i){\n"
-              + "        console.log(\"Param 1: \" + i);\n"
               + "        this.bar(i);\n"
+              + "        console.log(`Foo.bar(${i})`);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "    }\n"
               + "\n"
               + "    var baz = Java.use(\"com.Baz\");\n"
               + "    baz.qux.overload().implementation = function(){\n"
               + "        var retval = this.qux();\n"
-              + "        console.log(\"Return Value: \" + retval);\n"
+              + "        console.log(`Baz.qux() => ${retval}`);\n"
               + "        //console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n"
               + "        return retval;\n"
               + "    }\n"

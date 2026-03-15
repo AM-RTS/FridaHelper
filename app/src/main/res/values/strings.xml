@@ -12,6 +12,8 @@
     <string name="btn_edit">Edit</string>
     <string name="btn_done">Done</string>
     <string name="btn_reset">Reset</string>
+    <string name="btn_wrap">Wrap</string>
+    <string name="btn_nowrap">No wrap</string>
     <string name="switch_full_script">Wrap in Java.perform</string>
 
     <!-- Native Hook Fragment -->
@@ -55,6 +57,20 @@
     <!-- Helper text -->
     <string name="helper_java_hook">Enter a smali signature to generate a Frida Java hook script.</string>
     <string name="helper_native_hook">Select target mode and fill in the fields to generate a native hook.</string>
+
+    <!-- Batch import -->
+    <string name="btn_import_smali">Import .smali file(s)</string>
+    <string name="dialog_import_title">Import .smali file(s)</string>
+    <string name="dialog_import_positive">Import</string>
+    <string name="dialog_import_negative">Cancel</string>
+    <string name="hint_import_path">Path to .smali file or directory</string>
+    <string name="switch_skip_constructors">Skip constructors (&lt;init&gt;, &lt;clinit&gt;)</string>
+    <string name="hint_include_classes">Include classes (regex, optional)</string>
+    <string name="hint_exclude_methods">Exclude methods (regex, optional)</string>
+    <string name="msg_error_empty_path">Please enter a file or directory path</string>
+    <string name="msg_error_invalid_regex">Invalid regular expression</string>
+    <string name="msg_import_success">Imported %1$d hooks to queue</string>
+    <string name="msg_import_empty">No hookable methods found</string>
 
     <!-- Theme -->
     <string name="action_toggle_theme">Toggle theme</string>

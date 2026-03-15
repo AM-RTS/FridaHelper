@@ -14,10 +14,8 @@ import java.util.List;
  * Output format (properly indented):
  *   var networkManager = Java.use("com.example.NetworkManager");
  *   networkManager.sendRequest.overload("java.lang.String", "int").implementation = function(str, i){
- *       console.log("Param 1: " + str);
- *       console.log("Param 2: " + i);
  *       var retval = this.sendRequest(str, i);
- *       console.log("Return Value: " + retval);
+ *       console.log(`NetworkManager.sendRequest(${str}, ${i}) => ${retval}`);
  *       //console.log(Java.use("android.util.Log").getStackTraceString(Java.use("java.lang.Exception").$new()));
  *       return retval;
  *   }
@@ -43,7 +41,6 @@ public final class JavaHookGenerator implements ScriptGenerator {
         String className = method.getClassName();
         String methodName = method.getMethodName();
         List<String> paramTypes = method.getParamTypes();
-        int paramCount = paramTypes.size();
 
         String varName = deriveClassVariable(className);
         String paramNames = ParamNameGenerator.generate(paramTypes);
@@ -54,17 +51,13 @@ public final class JavaHookGenerator implements ScriptGenerator {
         sb.append(varName).append(methodAccess).append(".overload(").append(overloadArgs)
           .append(").implementation = function(").append(paramNames).append("){\n");
 
-        if (paramCount > 0) {
-            sb.append(buildLoggers(paramTypes));
-        }
-
         boolean isVoid = "void".equals(method.getReturnType());
         if (isVoid) {
             sb.append(INDENT).append("this").append(methodAccess).append("(").append(paramNames).append(");\n");
         } else {
             sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
-            sb.append(INDENT).append("console.log(\"Return Value: \" + retval);\n");
         }
+        sb.append(buildTraceLog(className, varName, methodName, paramTypes, isVoid));
         sb.append(INDENT).append("//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n");
         if (!isVoid) {
             sb.append(INDENT).append("return retval;\n");
@@ -72,6 +65,49 @@ public final class JavaHookGenerator implements ScriptGenerator {
         sb.append("}");
 
         return new GeneratedScript(sb.toString(), HookRequest.Type.JAVA);
+    }
+
+    /**
+     * Generates just the method hook portion without the Java.use declaration.
+     * Used by ScriptComposer when grouping multiple hooks for the same class.
+     *
+     * @param request the hook request
+     * @param varName the variable name to use (from the shared Java.use call)
+     * @return script text containing only the method hook (no var declaration)
+     */
+    public String generateMethodHook(HookRequest request, String varName) {
+        if (request.getType() != HookRequest.Type.JAVA) {
+            throw new IllegalArgumentException("JavaHookGenerator requires a JAVA HookRequest");
+        }
+
+        SmaliMethod method = request.getSmaliMethod();
+        StringBuilder sb = new StringBuilder();
+
+        String className = method.getClassName();
+        String methodName = method.getMethodName();
+        List<String> paramTypes = method.getParamTypes();
+
+        String paramNames = ParamNameGenerator.generate(paramTypes);
+        String methodAccess = buildMethodAccess(methodName);
+        String overloadArgs = buildOverloadArgs(paramTypes);
+
+        sb.append(varName).append(methodAccess).append(".overload(").append(overloadArgs)
+          .append(").implementation = function(").append(paramNames).append("){\n");
+
+        boolean isVoid = "void".equals(method.getReturnType());
+        if (isVoid) {
+            sb.append(INDENT).append("this").append(methodAccess).append("(").append(paramNames).append(");\n");
+        } else {
+            sb.append(INDENT).append("var retval = this").append(methodAccess).append("(").append(paramNames).append(");\n");
+        }
+        sb.append(buildTraceLog(className, varName, methodName, paramTypes, isVoid));
+        sb.append(INDENT).append("//console.log(Java.use(\"android.util.Log\").getStackTraceString(Java.use(\"java.lang.Exception\").$new()));\n");
+        if (!isVoid) {
+            sb.append(INDENT).append("return retval;\n");
+        }
+        sb.append("}");
+
+        return sb.toString();
     }
 
     /**
@@ -108,13 +144,40 @@ public final class JavaHookGenerator implements ScriptGenerator {
         return sb.toString();
     }
 
-    private String buildLoggers(List<String> paramTypes) {
-        StringBuilder sb = new StringBuilder();
-        String names = ParamNameGenerator.generate(paramTypes);
-        String[] nameArr = names.split(", ");
-        for (int i = 0; i < nameArr.length; i++) {
-            sb.append(INDENT).append("console.log(\"Param ").append(i + 1).append(": \" + ").append(nameArr[i]).append(");\n");
+    /**
+     * Builds a single console.log trace line using JS template literals.
+     * Uses simple class name for readable classes, full name for obfuscated ones (varName == "cls").
+     */
+    private String buildTraceLog(String className, String varName, String methodName,
+                                 List<String> paramTypes, boolean isVoid) {
+        String displayClass;
+        if ("cls".equals(varName)) {
+            displayClass = className;
+        } else {
+            int dot = className.lastIndexOf('.');
+            displayClass = dot >= 0 ? className.substring(dot + 1) : className;
         }
+
+        String displayMethod = "<init>".equals(methodName) ? "$init" : methodName;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(INDENT).append("console.log(`");
+        sb.append(displayClass).append(".").append(displayMethod).append("(");
+
+        if (!paramTypes.isEmpty()) {
+            String[] names = ParamNameGenerator.generate(paramTypes).split(", ");
+            for (int i = 0; i < names.length; i++) {
+                if (i > 0) sb.append(", ");
+                sb.append("${").append(names[i]).append("}");
+            }
+        }
+
+        sb.append(")");
+        if (!isVoid) {
+            sb.append(" => ${retval}");
+        }
+        sb.append("`);\n");
+
         return sb.toString();
     }
 }
