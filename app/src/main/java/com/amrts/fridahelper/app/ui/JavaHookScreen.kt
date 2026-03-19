@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -44,11 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.amrts.fridahelper.app.theme.CodeInputStyle
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.amrts.fridahelper.app.HookViewModel
@@ -59,6 +57,8 @@ import com.amrts.fridahelper.app.ui.components.ScriptOutput
 import kotlinx.coroutines.launch
 import android.content.pm.PackageManager
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 @Composable
 fun JavaHookScreen(
@@ -66,6 +66,7 @@ fun JavaHookScreen(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val scriptOutput by viewModel.javaScriptOutput.collectAsStateWithLifecycle()
     val composedOutput by viewModel.composedScriptOutput.collectAsStateWithLifecycle()
     val hookQueue by viewModel.hookQueue.collectAsStateWithLifecycle()
@@ -146,7 +147,6 @@ fun JavaHookScreen(
         )
 
         FilledTonalButton(
-            shape = RoundedCornerShape(24.dp),
             onClick = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     if (Environment.isExternalStorageManager()) {
@@ -180,12 +180,12 @@ fun JavaHookScreen(
             value = signature,
             onValueChange = { signature = it; signatureError = null },
             label = { Text("Smali signature") },
-            placeholder = { Text("Lcom/example/Foo;->bar(I)V", fontFamily = FontFamily.Monospace, fontSize = 13.sp) },
+            placeholder = { Text("Lcom/example/Foo;->bar(I)V", style = CodeInputStyle) },
             isError = signatureError != null,
             supportingText = signatureError?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
             singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp),
+            textStyle = CodeInputStyle,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
         )
 
@@ -204,14 +204,20 @@ fun JavaHookScreen(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 12.dp)
         ) {
-            Switch(checked = wrapInPerform, onCheckedChange = { wrapInPerform = it })
+            Switch(checked = wrapInPerform, onCheckedChange = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                wrapInPerform = it
+            })
             Text("Wrap in Java.perform", modifier = Modifier.padding(start = 8.dp))
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp)
         ) {
-            Switch(checked = enableStackTrace, onCheckedChange = { enableStackTrace = it })
+            Switch(checked = enableStackTrace, onCheckedChange = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                enableStackTrace = it
+            })
             Text("Enable Stack Trace", modifier = Modifier.padding(start = 8.dp))
         }
 
@@ -228,7 +234,6 @@ fun JavaHookScreen(
                     if (!tr.isValid) { timeoutError = tr.error; return@Button }
                     viewModel.generateJavaHook(sig, wrapInPerform, tr.value, enableStackTrace)
                 },
-                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             ) { Text("Generate") }
 
@@ -246,7 +251,6 @@ fun JavaHookScreen(
                         signatureError = e.message
                     }
                 },
-                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             ) { Text("Add to Queue") }
         }
@@ -275,7 +279,6 @@ fun JavaHookScreen(
                                     .build()
                             )
                         },
-                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("Compose Script") }
                     OutlinedButton(
@@ -283,7 +286,6 @@ fun JavaHookScreen(
                             viewModel.clearHooks()
                             scope.launch { snackbarHostState.showSnackbar("Queue cleared") }
                         },
-                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("Clear Queue") }
                 }

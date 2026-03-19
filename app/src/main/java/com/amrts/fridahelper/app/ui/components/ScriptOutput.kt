@@ -136,13 +136,11 @@ fun ScriptOutput(
                     clipboard.setPrimaryClip(ClipData.newPlainText("Frida Script", editBuffer))
                     scope.launch { snackbarHostState.showSnackbar("Copied to clipboard") }
                 },
-                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             ) { Text("Copy") }
 
             OutlinedButton(
                 onClick = { showExportDialog = true },
-                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             ) { Text("Export") }
         }

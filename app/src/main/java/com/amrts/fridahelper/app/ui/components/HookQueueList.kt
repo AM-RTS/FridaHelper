@@ -27,11 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amrts.fridahelper.app.theme.CodeTextStyle
 import com.amrts.fridahelper.core.model.HookRequest
 
 private const val COLLAPSE_THRESHOLD = 3
@@ -104,16 +104,13 @@ private fun HookQueueItem(
         )
         Text(
             text = if (request.type == HookRequest.Type.JAVA) "JAVA" else "NAT",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
+            style = CodeTextStyle.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 6.dp)
         )
         Text(
             text = formatSummary(request),
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
+            style = CodeTextStyle,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 8.dp)

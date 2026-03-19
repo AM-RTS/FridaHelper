@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -41,12 +40,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.amrts.fridahelper.app.theme.CodeInputStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.amrts.fridahelper.app.HookViewModel
 import com.amrts.fridahelper.app.ui.components.HookQueueList
@@ -54,6 +51,8 @@ import com.amrts.fridahelper.core.generator.CompositionOptions
 import com.amrts.fridahelper.app.ui.components.ScriptOutput
 import com.amrts.fridahelper.core.model.HookRequest
 import com.amrts.fridahelper.core.model.NativeSymbol
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.launch
 
 private const val MODE_EXPORT = 0
@@ -68,6 +67,7 @@ fun NativeHookScreen(
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val scriptOutput by viewModel.nativeScriptOutput.collectAsStateWithLifecycle()
     val composedOutput by viewModel.composedScriptOutput.collectAsStateWithLifecycle()
     val hookQueue by viewModel.hookQueue.collectAsStateWithLifecycle()
@@ -190,14 +190,14 @@ fun NativeHookScreen(
             ) { Text("Address (ptr)") }
         }
 
-        val monoStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp)
+        val monoStyle = CodeInputStyle
 
         // Library name (shared)
         OutlinedTextField(
             value = libName,
             onValueChange = { libName = it; libNameError = null },
             label = { Text("Library name (optional)") },
-            placeholder = { Text("libnative.so", fontFamily = FontFamily.Monospace, fontSize = 13.sp) },
+            placeholder = { Text("libnative.so", style = CodeInputStyle) },
             isError = libNameError != null,
             supportingText = libNameError?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
@@ -233,7 +233,7 @@ fun NativeHookScreen(
                 singleLine = true,
                 textStyle = monoStyle,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                placeholder = { Text("0x1234ABCD", fontFamily = FontFamily.Monospace, fontSize = 13.sp) }
+                placeholder = { Text("0x1234ABCD", style = CodeInputStyle) }
             )
         }
 
@@ -261,17 +261,25 @@ fun NativeHookScreen(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
         )
 
-        // Switches
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
-            Switch(checked = waitForLoad, onCheckedChange = { waitForLoad = it })
+            Switch(checked = waitForLoad, onCheckedChange = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                waitForLoad = it
+            })
             Text("Wait for library loading", modifier = Modifier.padding(start = 8.dp))
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-            Switch(checked = wrapPerform, onCheckedChange = { wrapPerform = it })
+            Switch(checked = wrapPerform, onCheckedChange = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                wrapPerform = it
+            })
             Text("Wrap in Java.perform", modifier = Modifier.padding(start = 8.dp))
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-            Switch(checked = enableStackTrace, onCheckedChange = { enableStackTrace = it })
+            Switch(checked = enableStackTrace, onCheckedChange = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                enableStackTrace = it
+            })
             Text("Enable Stack Trace", modifier = Modifier.padding(start = 8.dp))
         }
 
@@ -284,7 +292,6 @@ fun NativeHookScreen(
                     val symbol = buildSymbol() ?: return@Button
                     viewModel.generateNativeHook(symbol, wrapPerform, enableStackTrace)
                 },
-                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             ) { Text("Generate") }
 
@@ -296,7 +303,6 @@ fun NativeHookScreen(
                     exportName = ""; address = ""; argCountText = "0"; timeoutText = "0"
                     scope.launch { snackbarHostState.showSnackbar("Hook added. Queue: ${viewModel.queueSize}") }
                 },
-                shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             ) { Text("Add to Queue") }
         }
@@ -325,7 +331,6 @@ fun NativeHookScreen(
                                     .build()
                             )
                         },
-                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("Compose Script") }
                     OutlinedButton(
@@ -333,7 +338,6 @@ fun NativeHookScreen(
                             viewModel.clearHooks()
                             scope.launch { snackbarHostState.showSnackbar("Queue cleared") }
                         },
-                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier.weight(1f)
                     ) { Text("Clear Queue") }
                 }

@@ -9,7 +9,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -24,6 +28,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -34,17 +39,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.amrts.fridahelper.app.HookViewModel
 import com.amrts.fridahelper.app.ThemeManager
+import com.amrts.fridahelper.app.theme.CodeInputStyle
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -54,6 +60,7 @@ fun FridaHelperApp(
     onCycleTheme: () -> Unit = {},
     viewModel: HookViewModel = viewModel()
 ) {
+    val haptic = LocalHapticFeedback.current
     val snackbarHostState = remember { SnackbarHostState() }
     val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
@@ -77,22 +84,27 @@ fun FridaHelperApp(
         viewModel.autoScrollEnabled.value = ThemeManager.getAutoScroll(context)
     }
 
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text("FridaHelper") },
+                scrollBehavior = scrollBehavior,
                 actions = {
                     IconButton(onClick = {
                         onCycleTheme()
                         val label = ThemeManager.getModeLabel(ThemeManager.getSavedMode(context))
                         scope.launch { snackbarHostState.showSnackbar("Theme: $label") }
                     }) {
-                        Text(
-                            text = when (themeMode) {
-                                ThemeManager.MODE_LIGHT -> "\u2600"
-                                ThemeManager.MODE_DARK -> "\uD83C\uDF19"
-                                else -> "\u2699"
-                            }
+                        Icon(
+                            imageVector = when (themeMode) {
+                                ThemeManager.MODE_LIGHT -> Icons.Default.LightMode
+                                ThemeManager.MODE_DARK -> Icons.Default.DarkMode
+                                else -> Icons.Default.BrightnessAuto
+                            },
+                            contentDescription = "Toggle theme"
                         )
                     }
                     IconButton(onClick = { showMenu = true }) {
@@ -107,6 +119,7 @@ fun FridaHelperApp(
                                     Switch(
                                         checked = autoScroll,
                                         onCheckedChange = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             viewModel.autoScrollEnabled.value = it
                                             ThemeManager.setAutoScroll(context, it)
                                         }
@@ -144,7 +157,9 @@ fun FridaHelperApp(
             }
             HorizontalPager(
                 state = pagerState,
-                userScrollEnabled = !hasVisibleScript
+                userScrollEnabled = !hasVisibleScript,
+                beyondBoundsPageCount = 0,
+                modifier = Modifier.clipToBounds()
             ) { page ->
                 when (page) {
                     0 -> JavaHookScreen(viewModel, snackbarHostState)
@@ -191,9 +206,9 @@ private fun ExportDirDialog(
                     value = path,
                     onValueChange = { path = it },
                     label = { Text("Directory path") },
-                    placeholder = { Text("/sdcard/FridaScripts", fontFamily = FontFamily.Monospace, fontSize = 13.sp) },
+                    placeholder = { Text("/sdcard/FridaScripts", style = CodeInputStyle) },
                     singleLine = true,
-                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp)
+                    textStyle = CodeInputStyle
                 )
             }
         },
